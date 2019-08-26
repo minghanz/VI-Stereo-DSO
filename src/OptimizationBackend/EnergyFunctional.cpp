@@ -45,9 +45,14 @@ bool EFDeltaValid = false;
 // ZMH: generate H and b related to IMU factor
 void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	// ZMH: 15 corresponds to se3(6), v(3), bias(6) (each frame's states to be estimated)
-	// ZMH: 7 corresponds to sim3 (common states to be estimated)
-    H = MatXX::Zero(7+nFrames*15, 7+nFrames*15);
-    b = VecX::Zero(7+nFrames*15);
+	// // ZMH: 7 corresponds to sim3 (common states to be estimated)
+    // H = MatXX::Zero(7+nFrames*15, 7+nFrames*15);
+    // b = VecX::Zero(7+nFrames*15);
+
+	// ZMH: add 6 dimension to include extrinsic T_CB
+    H = MatXX::Zero(7+nFrames*15+6, 7+nFrames*15+6);
+    b = VecX::Zero(7+nFrames*15+6);
+
 //     if(nFrames ==3)exit(1);
     if(nFrames==1)return;
     int count_imu_res = 0;
@@ -55,8 +60,11 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	// ZMH: iterate over all keyframes
     for(int i=0;i<frames.size()-1;++i){
 	// ZMH: preintegrated IMU factors
-	// ZMH: 9 corresponds to p(3), v(3) and r(3) (9 residual terms in measurement model)
-	MatXX J_all = MatXX::Zero(9, 7+nFrames*15);
+	// // ZMH: 9 corresponds to p(3), v(3) and r(3) (9 residual terms in measurement model)
+	// MatXX J_all = MatXX::Zero(9, 7+nFrames*15);
+	// ZMH: add 6 dimension to the end for extrinsic T_CB
+	MatXX J_all = MatXX::Zero(9, 7+nFrames*15 + 6);
+
 	VecX r_all = VecX::Zero(9);
 	//preintegrate
 	IMUPreintegrator IMU_preintegrator;
@@ -72,8 +80,11 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	FrameHessian* Framej = frames[i+1]->data;
 	
 	//bias model
-	// ZMH: 6 corresponds to gyroscope bias and accelerometer bias
-	MatXX J_all2 = MatXX::Zero(6, 7+nFrames*15);
+	// // ZMH: 6 corresponds to gyroscope bias and accelerometer bias
+	// MatXX J_all2 = MatXX::Zero(6, 7+nFrames*15);
+	// ZMH: change it to include T_CB
+	MatXX J_all2 = MatXX::Zero(6, 7+nFrames*15 + 6);
+
 	VecX r_all2 = VecX::Zero(6);
 	
 	r_all2.block(0,0,3,1) = Framej->bias_g+Framej->delta_bias_g - (Framei->bias_g+Framei->delta_bias_g);
@@ -349,6 +360,16 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	J_all.block(0,0,9,7) += J_res_posebj*J_poseb_wd_j;
 	J_all.block(0,0,9,3) = Mat93::Zero();
 
+
+	// ZMH: add a section for derivative w.r.t. T_CB
+	Mat66 J_pose_cb = Mat66::Identity();
+	if(frames.size()<setting_maxFrames){
+		J_pose_cb = Mat66::Zero();
+	}
+	J_all.block(0,7+nFrames*15,9,6) += J_res_posebi.block(0,0,9,6)*J_pose_cb;
+	J_all.block(0,7+nFrames*15,9,6) += J_res_posebj.block(0,0,9,6)*J_pose_cb;
+
+
 	// ZMH: change right subtraction to left subtraction
 	Mat66 J_xi_r_l_i = worldToCam_i.Adj().inverse();
 	Mat66 J_xi_r_l_j = worldToCam_j.Adj().inverse();
@@ -405,12 +426,21 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
     for(int i=0;i<nFrames;i++){
 	// ZMH: first 3 states are translation, following 3 are rotation, 
 	// ZMH: scale the corresponding cross-correlation block (2 rectangular blocks and 1 square blocks)
-	H.block(0,7+i*15,7+nFrames*15,3) *= SCALE_XI_TRANS;
-	H.block(7+i*15,0,3,7+nFrames*15) *= SCALE_XI_TRANS;
+	// H.block(0,7+i*15,7+nFrames*15,3) *= SCALE_XI_TRANS;
+	// H.block(7+i*15,0,3,7+nFrames*15) *= SCALE_XI_TRANS;
+	// b.block(7+i*15,0,3,1) *= SCALE_XI_TRANS;
+	
+	// H.block(0,7+i*15+3,7+nFrames*15,3) *= SCALE_XI_ROT;
+	// H.block(7+i*15+3,0,3,7+nFrames*15) *= SCALE_XI_ROT;
+	// b.block(7+i*15+3,0,3,1) *= SCALE_XI_ROT;
+
+	// ZMH: add extrinsic T_CB
+	H.block(0,7+i*15,7+nFrames*15 + 6,3) *= SCALE_XI_TRANS;
+	H.block(7+i*15,0,3,7+nFrames*15 + 6) *= SCALE_XI_TRANS;
 	b.block(7+i*15,0,3,1) *= SCALE_XI_TRANS;
 	
-	H.block(0,7+i*15+3,7+nFrames*15,3) *= SCALE_XI_ROT;
-	H.block(7+i*15+3,0,3,7+nFrames*15) *= SCALE_XI_ROT;
+	H.block(0,7+i*15+3,7+nFrames*15 + 6,3) *= SCALE_XI_ROT;
+	H.block(7+i*15+3,0,3,7+nFrames*15 + 6) *= SCALE_XI_ROT;
 	b.block(7+i*15+3,0,3,1) *= SCALE_XI_ROT;
     }
 //     if(nFrames ==3)exit(1);
