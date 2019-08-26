@@ -620,14 +620,18 @@ void getIMUinfo(){
 		++line;
 	}
 	SE3 temp(R,t);
-	T_BC = temp;
+	// T_BC = temp;
+	T_CB = temp.inverse();
+	T_CB_l = T_CB;
+	T_CB_l_half = T_CB;
+	state_tcb.setZero();
 	
 	GyrCov = Mat33::Identity()*noise(0)*noise(0)/0.005;
 	AccCov = Mat33::Identity()*noise(1)*noise(1)/0.005;
 	GyrRandomWalkNoise = Mat33::Identity()*noise(2)*noise(2);
 	AccRandomWalkNoise = Mat33::Identity()*noise(3)*noise(3);
 	
-	LOG(INFO)<<"T_BC: \n"<<T_BC.matrix();
+	LOG(INFO)<<"T_CB: \n"<<T_CB.matrix();
 	LOG(INFO)<<"noise: "<<noise.transpose();
 	inf.close();
 	

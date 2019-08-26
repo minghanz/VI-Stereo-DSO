@@ -234,6 +234,11 @@ std::vector<double> imu_time_stamp;
 std::vector<double> pic_time_stamp;
 std::vector<double> pic_time_stamp_r;
 SE3 T_BC;
+// ZMH: add T_CB
+SE3 T_CB;
+SE3 T_CB_l;
+SE3 T_CB_l_half;
+SE3 T_CB_change;
 Mat33 GyrCov;
 Mat33 AccCov;
 Mat33 GyrRandomWalkNoise;

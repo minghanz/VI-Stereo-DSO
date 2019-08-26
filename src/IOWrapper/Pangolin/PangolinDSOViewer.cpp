@@ -424,7 +424,7 @@ void PangolinDSOViewer::drawConstraints()
 		for(unsigned int i=0;i<gt_pose.size();i++)
 		{
 			if(gt_time_stamp[i]>run_time)break;
-			SE3 pose_show = T_WR_align*gt_pose[i]*T_BC;
+			SE3 pose_show = T_WR_align*gt_pose[i]*T_CB.inverse();
 			glVertex3f((float)(pose_show.translation()[0]),
 					(float)(pose_show.translation()[1]),
 					(float)(pose_show.translation()[2]));

@@ -1247,7 +1247,7 @@ void FullSystem::initFirstFrame_imu(FrameHessian* fh){
 	g_b = -g_b/norm;
 	// ZMH: g_b: average direction vector of acceleration measurement (gravity)
 	// ZMH: g_c: average direction vector of acceleration measurement (gravity) in camera frame
-	Vec3 g_c = T_BC.inverse().rotationMatrix()*g_b;
+	Vec3 g_c = T_CB.rotationMatrix()*g_b;
 
 	norm = g_c.norm();
 	g_c = g_c/norm;
@@ -1269,7 +1269,7 @@ void FullSystem::initFirstFrame_imu(FrameHessian* fh){
 
 	if(gt_path.size() > 0)
 		// ZMH: transformation of point from ground truth logger's origin frame to world frame
-	    T_WR_align = T_wc * T_BC.inverse()*gt_pose[index2].inverse();
+	    T_WR_align = T_wc * T_CB*gt_pose[index2].inverse();
 	else
 	    T_WR_align = SE3();
 	
@@ -1323,7 +1323,7 @@ void FullSystem::savetrajectory_tum(const SE3 &T, double time){
 	    std::string gtfile = "./data/"+savefile_tail+"_gt.txt";
 	    f2.open(gtfile,std::ios::out|std::ios::app);
 	    
-	    SE3 gt_C = T_WR_align*gt_pose[index2]*T_BC;
+	    SE3 gt_C = T_WR_align*gt_pose[index2]*T_CB.inverse();
 	    q = Eigen::Quaterniond(gt_C.rotationMatrix());
 	    q4 = q.coeffs();
 	    t = gt_C.translation();

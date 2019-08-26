@@ -261,6 +261,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	{
 		Hcalib.setValue(Hcalib.value_backup + stepfacC*Hcalib.step);
 		T_WD_change  = Sim3::exp(Vec7::Zero());
+		T_CB_change = SE3::exp(Vec6::Zero());
 		if(imu_use_flag){
 // 		  T_WD = T_WD*change;
 		  state_twd += stepfacC*step_twd;
@@ -272,6 +273,9 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 // 		  LOG(INFO)<<"state_twd: "<<state_twd.transpose();
 		  T_WD_change  = Sim3::exp(state_twd);
 
+		  state_tcb += stepfacC*step_tcb;
+		  T_CB_change = SE3::exp(state_tcb);
+
 // 		  Sim3 T_WD_temp = T_WD*T_WD_change;
 // 		  double s_temp = T_WD_temp.scale();
 // 		  double s_wd = T_WD.scale();
@@ -280,10 +284,13 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 // 		  if(s_new<1/d_min)s_new = 1/d_min;
 // 		  T_WD = Sim3(RxSO3(s_new*s_wd,T_WD_temp.rotationMatrix()),Vec3::Zero());+
 		  T_WD = T_WD_l*T_WD_change;
+		  T_CB = T_CB_l*T_CB_change;
 		  
 		  if(M_num2==0){
 		      T_WD_l = T_WD;
 		      state_twd.setZero();
+			  T_CB_l = T_CB;
+		      state_tcb.setZero();
 		  }
 // 		  LOG(INFO)<<"T_WD.scale(): "<<T_WD.scale();
 // 		  LOG(INFO)<<"T_WD.translation(): "<<T_WD.translation().transpose();

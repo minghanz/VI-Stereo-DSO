@@ -62,14 +62,14 @@ double CoarseTracker::calcIMUResAndGS(Mat66 &H_out, Vec6 &b_out, SE3 &refToNew, 
     
     Mat44 M_DCi = lastRef->shell->camToWorld.matrix();
     Mat44 M_WD = T_WD.matrix();
-    Mat44 M_WB = M_WD*M_DCi*M_WD.inverse()*T_BC.inverse().matrix();
+    Mat44 M_WB = M_WD*M_DCi*M_WD.inverse()*T_CB.matrix();
     SE3 T_WB(M_WB);
     Mat33 R_WB = T_WB.rotationMatrix();
     Vec3 t_WB = T_WB.translation();
     
     SE3 newToRef = refToNew.inverse();    
     Mat44 M_DCj = (lastRef->shell->camToWorld * newToRef).matrix();
-    Mat44 M_WBj = M_WD*M_DCj*M_WD.inverse()*T_BC.inverse().matrix();
+    Mat44 M_WBj = M_WD*M_DCj*M_WD.inverse()*T_CB.matrix();
     SE3 T_WBj(M_WBj);
     Mat33 R_WBj = T_WBj.rotationMatrix();
     Vec3 t_WBj = T_WBj.translation();
@@ -175,9 +175,9 @@ double CoarseTracker::calcIMUResAndGS(Mat66 &H_out, Vec6 &b_out, SE3 &refToNew, 
     b_1.block(3,0,3,1) = res_phi;
 //     b_1.block(6,0,3,1) = res_v;
     
-    Mat44 T_temp = T_BC.matrix()*T_WD.matrix()*M_DCj.inverse();
+    Mat44 T_temp = T_CB.inverse().matrix()*T_WD.matrix()*M_DCj.inverse();
     Mat66 J_rel = (-1*Sim3(T_temp).Adj()).block(0,0,6,6);
-//     Mat44 T_temp = T_BC.matrix()*M_DCj.inverse();
+//     Mat44 T_temp = T_CB.inverse().matrix()*M_DCj.inverse();
 //     Mat66 J_rel = (-1*SE3(T_temp).Adj());
     Mat66 J_xi_tw_th = SE3(M_DCi).Adj();
 //     LOG(INFO)<<"-1*Sim3(T_temp).Adj: "<<-1*Sim3(T_temp).Adj().matrix();

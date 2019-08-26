@@ -141,22 +141,22 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	g_w << 0,0,-G_norm;
 // 	LOG(INFO)<<"00000000";
 	
-	Mat44 M_WB = T_WD.matrix()*worldToCam_i.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
+	Mat44 M_WB = T_WD.matrix()*worldToCam_i.inverse().matrix()*T_WD.inverse().matrix()*T_CB.matrix();
 	SE3 T_WB(M_WB);
 	Mat33 R_WB = T_WB.rotationMatrix();
 	Vec3 t_WB = T_WB.translation();
 	
-	Mat44 M_WB2 = T_WD.matrix()*worldToCam_i2.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
+	Mat44 M_WB2 = T_WD.matrix()*worldToCam_i2.inverse().matrix()*T_WD.inverse().matrix()*T_CB.matrix();
 	SE3 T_WB2(M_WB2);
 	Mat33 R_WB2 = T_WB2.rotationMatrix();
 	Vec3 t_WB2 = T_WB2.translation();
 	
-	Mat44 M_WBj = T_WD.matrix()*worldToCam_j.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
+	Mat44 M_WBj = T_WD.matrix()*worldToCam_j.inverse().matrix()*T_WD.inverse().matrix()*T_CB.matrix();
 	SE3 T_WBj(M_WBj);
 	Mat33 R_WBj = T_WBj.rotationMatrix();
 	Vec3 t_WBj = T_WBj.translation();
 	
-	Mat44 M_WBj2 = T_WD.matrix()*worldToCam_j2.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
+	Mat44 M_WBj2 = T_WD.matrix()*worldToCam_j2.inverse().matrix()*T_WD.inverse().matrix()*T_CB.matrix();
 	SE3 T_WBj2(M_WBj2);
 	Mat33 R_WBj2 = T_WBj2.rotationMatrix();
 	Vec3 t_WBj2 = T_WBj2.translation();
@@ -313,18 +313,18 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 // 	LOG(INFO)<<"b_1: "<<b_1.transpose();
 	// ZMH: an intermediate product in the calculation of derivative of the imu pose in metric frame (A.2 in VI14 supplement) 
 	// ZMH: w.r.t. purturbation of camera pose in DSO frame (A.16 in VI14 supplement)
-	Mat44 T_tempj = T_BC.matrix()*T_WD_l.matrix()*worldToCam_j.matrix();
+	Mat44 T_tempj = T_CB_l.inverse().matrix()*T_WD_l.matrix()*worldToCam_j.matrix();
 	// ZMH: 10 in VI14: J_rel is the derivative of imu states (15 dim) w.r.t. cam states (15 dim)
 	Mat1515 J_relj = Mat1515::Identity();
 	// ZMH: the 6*6 block is A.16 (scale not appear in this equation)
 	J_relj.block(0,0,6,6) = (-1*Sim3(T_tempj).Adj()).block(0,0,6,6);
-	Mat44 T_tempi = T_BC.matrix()*T_WD_l.matrix()*worldToCam_i.matrix();
+	Mat44 T_tempi = T_CB_l.inverse().matrix()*T_WD_l.matrix()*worldToCam_i.matrix();
 	Mat1515 J_reli = Mat1515::Identity();
 	J_reli.block(0,0,6,6) = (-1*Sim3(T_tempi).Adj()).block(0,0,6,6);
 	
 	// ZMH: derivative of the imu pose in metric frame w.r.t. Twd (sim3 transformation from metric frame to dso frame) (A.25 in VI24 supplement)
-	Mat77 J_poseb_wd_i= Sim3(T_tempi).Adj()-Sim3(T_BC.matrix()*T_WD_l.matrix()).Adj();
-	Mat77 J_poseb_wd_j= Sim3(T_tempj).Adj()-Sim3(T_BC.matrix()*T_WD_l.matrix()).Adj();
+	Mat77 J_poseb_wd_i= Sim3(T_tempi).Adj()-Sim3(T_CB_l.inverse().matrix()*T_WD_l.matrix()).Adj();
+	Mat77 J_poseb_wd_j= Sim3(T_tempj).Adj()-Sim3(T_CB_l.inverse().matrix()*T_WD_l.matrix()).Adj();
 	// ZMH: manually set jacobian w.r.t. translation to zero
 	J_poseb_wd_i.block(0,0,7,3) = Mat73::Zero();
 	J_poseb_wd_j.block(0,0,7,3) = Mat73::Zero();
@@ -1065,22 +1065,22 @@ void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh){
 	    Vec3 g_w;
 	    g_w << 0,0,-G_norm;
 
-// 	    Mat44 M_WB = T_WD.matrix()*worldToCam_i.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
+// 	    Mat44 M_WB = T_WD.matrix()*worldToCam_i.inverse().matrix()*T_WD.inverse().matrix()*T_CB.matrix();
 // 	    SE3 T_WB(M_WB);
 // 	    Mat33 R_WB = T_WB.rotationMatrix();
 // 	    Vec3 t_WB = T_WB.translation();
 	    
-	    Mat44 M_WB2 = T_WD.matrix()*worldToCam_i2.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
+	    Mat44 M_WB2 = T_WD.matrix()*worldToCam_i2.inverse().matrix()*T_WD.inverse().matrix()*T_CB.matrix();
 	    SE3 T_WB2(M_WB2);
 	    Mat33 R_WB2 = T_WB2.rotationMatrix();
 	    Vec3 t_WB2 = T_WB2.translation();
 	    
-// 	    Mat44 M_WBj = T_WD.matrix()*worldToCam_j.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
+// 	    Mat44 M_WBj = T_WD.matrix()*worldToCam_j.inverse().matrix()*T_WD.inverse().matrix()*T_CB.matrix();
 // 	    SE3 T_WBj(M_WBj);
 // 	    Mat33 R_WBj = T_WBj.rotationMatrix();
 // 	    Vec3 t_WBj = T_WBj.translation();
 	    
-	    Mat44 M_WBj2 = T_WD.matrix()*worldToCam_j2.inverse().matrix()*T_WD.inverse().matrix()*T_BC.inverse().matrix();
+	    Mat44 M_WBj2 = T_WD.matrix()*worldToCam_j2.inverse().matrix()*T_WD.inverse().matrix()*T_CB.matrix();
 	    SE3 T_WBj2(M_WBj2);
 	    Mat33 R_WBj2 = T_WBj2.rotationMatrix();
 	    Vec3 t_WBj2 = T_WBj2.translation();
@@ -1198,24 +1198,24 @@ void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh){
 // 	    bei = bei/imu_lambda;
 // 	    Weight *=(bei*bei);
 	   
-	    Mat44 T_tempj = T_BC.matrix()*T_WD_l.matrix()*worldToCam_j.matrix();
+	    Mat44 T_tempj = T_CB_l.inverse().matrix()*T_WD_l.matrix()*worldToCam_j.matrix();
 	    Mat1515 J_relj = Mat1515::Identity();
 	    J_relj.block(0,0,6,6) = (-1*Sim3(T_tempj).Adj()).block(0,0,6,6);
-	    Mat44 T_tempi = T_BC.matrix()*T_WD_l.matrix()*worldToCam_i.matrix();
+	    Mat44 T_tempi = T_CB_l.inverse().matrix()*T_WD_l.matrix()*worldToCam_i.matrix();
 	    Mat1515 J_reli = Mat1515::Identity();
 	    J_reli.block(0,0,6,6) = (-1*Sim3(T_tempi).Adj()).block(0,0,6,6);
 	    
-	    Mat44 T_tempj_half = T_BC.matrix()*T_WD_l_half.matrix()*worldToCam_j.matrix();
+	    Mat44 T_tempj_half = T_CB_l_half.inverse().matrix()*T_WD_l_half.matrix()*worldToCam_j.matrix();
 	    Mat1515 J_relj_half = Mat1515::Identity();
 	    J_relj_half.block(0,0,6,6) = (-1*Sim3(T_tempj_half).Adj()).block(0,0,6,6);
-	    Mat44 T_tempi_half = T_BC.matrix()*T_WD_l_half.matrix()*worldToCam_i.matrix();
+	    Mat44 T_tempi_half = T_CB_l_half.inverse().matrix()*T_WD_l_half.matrix()*worldToCam_i.matrix();
 	    Mat1515 J_reli_half = Mat1515::Identity();
 	    J_reli_half.block(0,0,6,6) = (-1*Sim3(T_tempi_half).Adj()).block(0,0,6,6);
 	    
-	    Mat77 J_poseb_wd_i= Sim3(T_tempi).Adj()-Sim3(T_BC.matrix()*T_WD_l.matrix()).Adj();
-	    Mat77 J_poseb_wd_j= Sim3(T_tempj).Adj()-Sim3(T_BC.matrix()*T_WD_l.matrix()).Adj();
-	    Mat77 J_poseb_wd_i_half= Sim3(T_tempi_half).Adj()-Sim3(T_BC.matrix()*T_WD_l_half.matrix()).Adj();
-	    Mat77 J_poseb_wd_j_half= Sim3(T_tempj_half).Adj()-Sim3(T_BC.matrix()*T_WD_l_half.matrix()).Adj();
+	    Mat77 J_poseb_wd_i= Sim3(T_tempi).Adj()-Sim3(T_CB_l.inverse().matrix()*T_WD_l.matrix()).Adj();
+	    Mat77 J_poseb_wd_j= Sim3(T_tempj).Adj()-Sim3(T_CB_l.inverse().matrix()*T_WD_l.matrix()).Adj();
+	    Mat77 J_poseb_wd_i_half= Sim3(T_tempi_half).Adj()-Sim3(T_CB_l_half.inverse().matrix()*T_WD_l_half.matrix()).Adj();
+	    Mat77 J_poseb_wd_j_half= Sim3(T_tempj_half).Adj()-Sim3(T_CB_l_half.inverse().matrix()*T_WD_l_half.matrix()).Adj();
 	    J_poseb_wd_i.block(0,0,7,3) = Mat73::Zero();
 	    J_poseb_wd_j.block(0,0,7,3) = Mat73::Zero();
 // 	    J_poseb_wd_i.block(0,3,7,3) = Mat73::Zero();
@@ -1326,12 +1326,17 @@ void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh){
 // 	}
 	delta_b.block(CPARS,0,7,1) = Sim3(T_WD_l.inverse()*T_WD).log();
 	
+	// ZMH: for T_CB
+	delta_b.block(CPARS+7,0,6,1) = SE3(T_CB_l.inverse()*T_CB).log();
 	    
 	VecX delta_b_half = delta_b;
 	delta_b_half.block(CPARS,0,7,1) = Sim3(T_WD_l_half.inverse()*T_WD).log();
+	// ZMH: for T_CB
+	delta_b_half.block(CPARS+7,0,6,1) = SE3(T_CB_l_half.inverse()*T_CB).log();
 	
 	bM_change -= HM_change*delta_b;
 	bM_change_half -= HM_change_half*delta_b_half;
+
 	
 	double s_now = T_WD.scale();
 	double di=1;
@@ -1365,6 +1370,8 @@ void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh){
 	    
 	    M_num = 0;
 	    T_WD_l_half = T_WD;
+		// ZMH: for T_CB
+	    T_CB_l_half = T_CB;
 // 	    LOG(INFO)<<"set half scale: "<<T_WD_l_half.scale();
 	}
 	M_num++;
@@ -1528,6 +1535,9 @@ void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh){
 	    M_num = 0;
 	    T_WD_l = T_WD_l_half;
 	    state_twd = Sim3(T_WD_l.inverse()*T_WD).log();
+		// ZMH: add T_CB
+		T_CB_l = T_CB_l_half;
+	    state_tcb = SE3(T_CB_l.inverse()*T_CB).log();
 	    
 // 	    LOG(INFO)<<"set l scale: "<<T_WD_l.scale();
 	  }

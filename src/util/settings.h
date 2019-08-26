@@ -228,6 +228,11 @@ extern std::vector<double> imu_time_stamp;
 extern std::vector<double> pic_time_stamp;
 extern std::vector<double> pic_time_stamp_r;
 extern SE3 T_BC;
+// ZMH: add T_CB
+extern SE3 T_CB;
+extern SE3 T_CB_l;
+extern SE3 T_CB_l_half;
+extern SE3 T_CB_change;
 extern Mat33 GyrCov;
 extern Mat33 AccCov;
 extern Mat33 GyrRandomWalkNoise;
