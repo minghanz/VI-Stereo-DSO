@@ -264,7 +264,9 @@ extern bool use_stereo;
 //#define patternPadding staticPatternPadding[setting_pattern]
 
 //
+// ZMH: 8 corresponding to number of surrounding points in SSE evaluation
 #define patternNum 8
+// ZMH: patternP is SSE pattern (8 points around current pixel), each includes offset x and offset y
 #define patternP staticPattern[8]
 #define patternPadding 2
 
