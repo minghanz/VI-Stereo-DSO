@@ -53,7 +53,7 @@ typedef Sophus::SO3f SO3f;
 typedef Sophus::RxSO3d RxSO3;
 
 
-
+// ZMH: the number of camera intrinsic parameters to be estimated (fx, fy, cx, cy)
 #define CPARS 4
 
 

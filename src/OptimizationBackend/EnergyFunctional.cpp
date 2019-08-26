@@ -42,14 +42,20 @@ bool EFAdjointsValid = false;
 bool EFIndicesValid = false;
 bool EFDeltaValid = false;
 
+// ZMH: generate H and b related to IMU factor
 void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
+	// ZMH: 15 corresponds to se3(6), v(3), bias(6) (each frame's states to be estimated)
+	// ZMH: 7 corresponds to sim3 (common states to be estimated)
     H = MatXX::Zero(7+nFrames*15, 7+nFrames*15);
     b = VecX::Zero(7+nFrames*15);
 //     if(nFrames ==3)exit(1);
     if(nFrames==1)return;
     int count_imu_res = 0;
     double Energy = 0;
+	// ZMH: iterate over all keyframes
     for(int i=0;i<frames.size()-1;++i){
+	// ZMH: preintegrated IMU factors
+	// ZMH: 9 corresponds to p(3), v(3) and r(3) (9 residual terms in measurement model)
 	MatXX J_all = MatXX::Zero(9, 7+nFrames*15);
 	VecX r_all = VecX::Zero(9);
 	//preintegrate
@@ -66,12 +72,14 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	FrameHessian* Framej = frames[i+1]->data;
 	
 	//bias model
+	// ZMH: 6 corresponds to gyroscope bias and accelerometer bias
 	MatXX J_all2 = MatXX::Zero(6, 7+nFrames*15);
 	VecX r_all2 = VecX::Zero(6);
 	
 	r_all2.block(0,0,3,1) = Framej->bias_g+Framej->delta_bias_g - (Framei->bias_g+Framei->delta_bias_g);
 	r_all2.block(3,0,3,1) = Framej->bias_a+Framej->delta_bias_a - (Framei->bias_a+Framei->delta_bias_a);
 	
+	// ZMH: Column 9-12 is bias_g, 12-15 is bias_a (two adjacent frames involved)
 	J_all2.block(0,7+i*15+9,3,3) = -Mat33::Identity();
 	J_all2.block(0,7+(i+1)*15+9,3,3) = Mat33::Identity();
 	J_all2.block(3,7+i*15+12,3,3) = -Mat33::Identity();
@@ -85,12 +93,14 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	b += J_all2.transpose()*weight_bias*r_all2;
 	
 	if(dt>0.5)continue;
-	
+	// ZMH: linearization point
 	SE3 worldToCam_i = Framei->get_worldToCam_evalPT();
 	SE3 worldToCam_j = Framej->get_worldToCam_evalPT();
+	// ZMH: current estimation
 	SE3 worldToCam_i2 = Framei->PRE_worldToCam;
 	SE3 worldToCam_j2 = Framej->PRE_worldToCam;
 
+	// ZMH: find the closest IMU frame after camera frame
 	int index;
 	for(int i=0;i<imu_time_stamp.size();++i){
 	    if(imu_time_stamp[i]>time_start||fabs(time_start-imu_time_stamp[i])<0.001){
@@ -99,6 +109,7 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	    }
 	}
 	
+	// ZMH: update the IMU preintegrator until the next keyframe timestamp
 	while(1){
 	    double delta_t; 
 	    if(imu_time_stamp[index+1]<time_end)
@@ -140,6 +151,8 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 // 	LOG(INFO)<<"a";
 	//calculate res
 // 	Vec3 so3 = IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g;
+
+	// ZMH: approximate rotational purturbation caused by change in estimation of bias_g
 	Mat33 R_temp = SO3::exp(IMU_preintegrator.getJRBiasg()*Framei->delta_bias_g).matrix();
 // 	Mat33 res_R = (IMU_preintegrator.getDeltaR()*R_temp).transpose()*R_WB.transpose()*R_WBj;
 // 	Vec3 res_phi = SO3(res_R).log();
@@ -148,10 +161,13 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 // 	Vec3 res_p = R_WB.transpose()*(t_WBj-t_WB-Framei->velocity*dt-0.5*g_w*dt*dt)-
 // 		 (IMU_preintegrator.getDeltaP()+IMU_preintegrator.getJPBiasa()*Framei->delta_bias_a+IMU_preintegrator.getJPBiasg()*Framei->delta_bias_g);
 		 
+	// ZMH: residual in delta Rij (45 in VI11)
 	Mat33 res_R2 = (IMU_preintegrator.getDeltaR()*R_temp).transpose()*R_WB2.transpose()*R_WBj2;
 	Vec3 res_phi2 = SO3(res_R2).log();
+	// ZMH: residual in delta vij (45 in VI11)
 	Vec3 res_v2 = R_WB2.transpose()*(Framej->velocity-Framei->velocity-g_w*dt)-
 		 (IMU_preintegrator.getDeltaV()+IMU_preintegrator.getJVBiasa()*Framei->delta_bias_a+IMU_preintegrator.getJVBiasg()*Framei->delta_bias_g);
+	// ZMH: residual in delta pij (45 in VI11)
 	Vec3 res_p2 = R_WB2.transpose()*(t_WBj2-t_WB2-Framei->velocity*dt-0.5*g_w*dt*dt)-
 		 (IMU_preintegrator.getDeltaP()+IMU_preintegrator.getJPBiasa()*Framei->delta_bias_a+IMU_preintegrator.getJPBiasg()*Framei->delta_bias_g);
 // 	LOG(INFO)<<"R_WB2: \n"<<R_WB2;
@@ -166,6 +182,8 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 // 	LOG(INFO)<<" Framei->velocity: "<<Framei->velocity.transpose()<<" Framej->velocity: "<<Framej->velocity.transpose();
 // 	LOG(INFO)<<"res_v2: "<<res_v2.transpose();
 // 	LOG(INFO)<<"res_p2: "<<res_p2.transpose();
+
+	// ZMH: covariance matrix of IMU residual (delta p, v, phi) (63 in VI11)
 	Mat99 Cov = IMU_preintegrator.getCovPVPhi();
 
 // 	Mat33 J_resPhi_phi_i = -IMU_preintegrator.JacobianRInv(res_phi2)*R_WBj.transpose()*R_WB;
@@ -186,6 +204,7 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 // 	Mat33 J_resP_v_i = -R_WB.transpose()*dt;
 // 	Mat33 J_resP_phi_i = SO3::hat(R_WB.transpose()*(t_WBj - t_WB - Framei->velocity*dt - 0.5*g_w*dt*dt));
 	
+	// ZMH: Jacibian of residuals w.r.t. states to be estimated
 	Mat33 J_resPhi_phi_i = -IMU_preintegrator.JacobianRInv(res_phi2)*R_WBj2.transpose()*R_WB2;
 	Mat33 J_resPhi_phi_j = IMU_preintegrator.JacobianRInv(res_phi2);
 	Mat33 J_resPhi_bg = -IMU_preintegrator.JacobianRInv(res_phi2)*SO3::exp(-res_phi2).matrix()*
@@ -206,6 +225,7 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 // 	LOG(INFO)<<"1111111";
 
 // 	LOG(INFO)<<"222222";
+	// ZMH: Jacobian of residual w.r.t. states in imu frame
 	Mat915 J_imui = Mat915::Zero();//rho,phi,v,bias_g,bias_a;
 	J_imui.block(0,0,3,3) = J_resP_p_i;
 	J_imui.block(0,3,3,3) = J_resP_phi_i;
@@ -278,15 +298,21 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 // 	Weight_sqrt = Weight_sqrt*bei/imu_lambda;
 // 	LOG(INFO)<<"b_1: "<<b_1.transpose();
 // 	LOG(INFO)<<"b_1: "<<b_1.transpose();
+	// ZMH: an intermediate product in the calculation of derivative of the imu pose in metric frame (A.2 in VI14 supplement) 
+	// ZMH: w.r.t. purturbation of camera pose in DSO frame (A.16 in VI14 supplement)
 	Mat44 T_tempj = T_BC.matrix()*T_WD_l.matrix()*worldToCam_j.matrix();
+	// ZMH: 10 in VI14: J_rel is the derivative of imu states (15 dim) w.r.t. cam states (15 dim)
 	Mat1515 J_relj = Mat1515::Identity();
+	// ZMH: the 6*6 block is A.16 (scale not appear in this equation)
 	J_relj.block(0,0,6,6) = (-1*Sim3(T_tempj).Adj()).block(0,0,6,6);
 	Mat44 T_tempi = T_BC.matrix()*T_WD_l.matrix()*worldToCam_i.matrix();
 	Mat1515 J_reli = Mat1515::Identity();
 	J_reli.block(0,0,6,6) = (-1*Sim3(T_tempi).Adj()).block(0,0,6,6);
 	
+	// ZMH: derivative of the imu pose in metric frame w.r.t. Twd (sim3 transformation from metric frame to dso frame) (A.25 in VI24 supplement)
 	Mat77 J_poseb_wd_i= Sim3(T_tempi).Adj()-Sim3(T_BC.matrix()*T_WD_l.matrix()).Adj();
 	Mat77 J_poseb_wd_j= Sim3(T_tempj).Adj()-Sim3(T_BC.matrix()*T_WD_l.matrix()).Adj();
+	// ZMH: manually set jacobian w.r.t. translation to zero
 	J_poseb_wd_i.block(0,0,7,3) = Mat73::Zero();
 	J_poseb_wd_j.block(0,0,7,3) = Mat73::Zero();
 // 	J_poseb_wd_i.block(0,3,7,3) = Mat73::Zero();
@@ -309,26 +335,35 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	
 // 	LOG(INFO)<<"J_poseb_wd_i: \n"<<J_poseb_wd_i;
 // 	LOG(INFO)<<"J_poseb_wd_j: \n"<<J_poseb_wd_j;
+	// ZMH: Jacobian of residual w.r.t. "pose" in imu frame, cause only pose (instead of velocity, bias) is related to the sim3 transform
 	Mat97 J_res_posebi = Mat97::Zero();
 	J_res_posebi.block(0,0,9,6) = J_imui.block(0,0,9,6);
 	Mat97 J_res_posebj = Mat97::Zero();
 	J_res_posebj.block(0,0,9,6) = J_imuj.block(0,0,9,6);
 // 	LOG(INFO)<<"5555555";
+
+	// ZMH: A.7 in VI14 supplement, also see 10-11 in VI14
+	// ZMH: Jacobian of residual w.r.t. sim3 transformation from metric frame to dso frame
+	// ZMH: from residual to imu pose, from imu pose of sim3 transform
+	J_all.block(0,0,9,7) += J_res_posebi*J_poseb_wd_i;
+	J_all.block(0,0,9,7) += J_res_posebj*J_poseb_wd_j;
+	J_all.block(0,0,9,3) = Mat93::Zero();
+
+	// ZMH: change right subtraction to left subtraction
 	Mat66 J_xi_r_l_i = worldToCam_i.Adj().inverse();
 	Mat66 J_xi_r_l_j = worldToCam_j.Adj().inverse();
 	Mat1515 J_r_l_i = Mat1515::Identity();
 	Mat1515 J_r_l_j = Mat1515::Identity();
 	J_r_l_i.block(0,0,6,6) = J_xi_r_l_i;
 	J_r_l_j.block(0,0,6,6) = J_xi_r_l_j;
-	J_all.block(0,0,9,7) += J_res_posebi*J_poseb_wd_i;
-	J_all.block(0,0,9,7) += J_res_posebj*J_poseb_wd_j;
-	J_all.block(0,0,9,3) = Mat93::Zero();
 	
+	// ZMH: from residual to imu states, from imu states to cam states, from right to left subtractions 
 	J_all.block(0,7+i*15,9,15) += J_imui*J_reli*J_r_l_i;
 	J_all.block(0,7+(i+1)*15,9,15) += J_imuj*J_relj*J_r_l_j;
 	
 	r_all.block(0,0,9,1) += b_1;
 	
+	// Add the preintegration factor to the hessian (bias factor is already added to this hessian above)
 	H += (J_all.transpose()*Weight*J_all);
 	b += (J_all.transpose()*Weight*r_all);
 	
@@ -368,6 +403,8 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 //     exit(1);
     
     for(int i=0;i<nFrames;i++){
+	// ZMH: first 3 states are translation, following 3 are rotation, 
+	// ZMH: scale the corresponding cross-correlation block (2 rectangular blocks and 1 square blocks)
 	H.block(0,7+i*15,7+nFrames*15,3) *= SCALE_XI_TRANS;
 	H.block(7+i*15,0,3,7+nFrames*15) *= SCALE_XI_TRANS;
 	b.block(7+i*15,0,3,1) *= SCALE_XI_TRANS;
@@ -518,7 +555,7 @@ EnergyFunctional::~EnergyFunctional()
 
 
 
-
+// ZMH: update all deltaF in EFFrames and EFPoints through their corresponding FrameHessian and PointHessian
 void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 {
 	if(adHTdeltaF != 0) delete[] adHTdeltaF;
@@ -788,6 +825,7 @@ EFResidual* EnergyFunctional::insertResidual(PointFrameResidual* r)
 	
 	return efr;
 }
+// ZMH: create a new EFFrame corresponding to this FrameHessian, and then resize the H and b of the graphs of the sliding window
 EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 {
 	EFFrame* eff = new EFFrame(fh);
@@ -809,12 +847,15 @@ EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 	HM.rightCols<8>().setZero();
 	HM.bottomRows<8>().setZero();
 	
+	// ZMH: 7 here corresponds to the sim3 transformation between visual frame and metric frame? 
+	// ZMH: (but it is translation free according to VI-DSO paper...)
 	bM_imu.conservativeResize(17*nFrames+CPARS+7);
 	HM_imu.conservativeResize(17*nFrames+CPARS+7,17*nFrames+CPARS+7);
 	bM_imu.tail<17>().setZero();
 	HM_imu.rightCols<17>().setZero();
 	HM_imu.bottomRows<17>().setZero();
 	
+	// ZMH: what is the difference between bias graph and imu graph?
 	bM_bias.conservativeResize(17*nFrames+CPARS+7);
 	HM_bias.conservativeResize(17*nFrames+CPARS+7,17*nFrames+CPARS+7);
 	bM_bias.tail<17>().setZero();
@@ -1748,6 +1789,7 @@ void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 }
 
 
+// ZMH: IMU Hessian is generated and combined with all other Hessians, and the whole system is solved
 void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* HCalib)
 {
 	if(setting_solverMode & SOLVER_USE_GN) lambda=0;
@@ -1793,7 +1835,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	getIMUHessian(H_imu,b_imu);
 
 
-
+	// ZMH: The visual-only graph. size is CPARS+8*nFrames (8 for pose and a, b)
 	MatXX HFinal_top;
 	VecX bFinal_top;
 
@@ -1852,6 +1894,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	for(int i=0;i<7+15*nFrames;i++)H_imu(i,i)*= (1+lambda);
 
 		//imu_term
+	// ZMH: final graph hessian
 	MatXX HFinal_top2 =  MatXX::Zero(CPARS+7+17*nFrames,CPARS+7+17*nFrames);//Cam,Twd,pose,a,b,v,bg,ba
 	VecX bFinal_top2 = VecX::Zero(CPARS+7+17*nFrames);
 	HFinal_top2.block(0,0,CPARS,CPARS) = HFinal_top.block(0,0,CPARS,CPARS);
@@ -1860,45 +1903,59 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	bFinal_top2.block(CPARS,0,7,1) = b_imu.block(0,0,7,1);
 	for(int i=0;i<nFrames;++i){
 	    //cam
+		// ZMH: cam-(pose-a-b) block
 	    HFinal_top2.block(0,CPARS+7+i*17,CPARS,8) += HFinal_top.block(0,CPARS+i*8,CPARS,8);
 	    HFinal_top2.block(CPARS+7+i*17,0,8,CPARS) += HFinal_top.block(CPARS+i*8,0,8,CPARS);
 	    //Twd
+		// ZMH: Twd-pose block
 	    HFinal_top2.block(CPARS,CPARS+7+i*17,7,6) += H_imu.block(0,7+i*15,7,6);
 	    HFinal_top2.block(CPARS+7+i*17,CPARS,6,7) += H_imu.block(7+i*15,0,6,7);
+		// ZMH: Twd-(v,bg,ba) block
 	    HFinal_top2.block(CPARS,CPARS+7+i*17+8,7,9) += H_imu.block(0,7+i*15+6,7,9);
 	    HFinal_top2.block(CPARS+7+i*17+8,CPARS,9,7) += H_imu.block(7+i*15+6,0,9,7);
 	    //pose a b
+		// ZMH: (pose,a,b)-(pose,a,b) block from visual factor
 	    HFinal_top2.block(CPARS+7+i*17,CPARS+7+i*17,8,8) += HFinal_top.block(CPARS+i*8,CPARS+i*8,8,8);
 	    //pose
+		// ZMH: pose-pose block from imu factor
 	    HFinal_top2.block(CPARS+7+i*17,CPARS+7+i*17,6,6) += H_imu.block(7+i*15,7+i*15,6,6);
 	    //v bg ba
+		// ZMH: (v,bg,ba)-(v,bg,ba) block from imu factor
 	    HFinal_top2.block(CPARS+7+i*17+8,CPARS+7+i*17+8,9,9) += H_imu.block(7+i*15+6,7+i*15+6,9,9);
 	    //v bg ba,pose
+		// ZMH: (v,bg,ba)-pose block from imu factor
 	    HFinal_top2.block(CPARS+7+i*17+8,CPARS+7+i*17,9,6) += H_imu.block(7+i*15+6,7+i*15,9,6);
 	    //pose,v bg ba
 	    HFinal_top2.block(CPARS+7+i*17,CPARS+7+i*17+8,6,9) += H_imu.block(7+i*15,7+i*15+6,6,9);
 	    
 	    for(int j=i+1;j<nFrames;++j){
 		//pose a b
+		// ZMH: (pose,a,b)i-(pose,a,b)j block from visual factor
 		HFinal_top2.block(CPARS+7+i*17,CPARS+7+j*17,8,8) += HFinal_top.block(CPARS+i*8,CPARS+j*8,8,8);
 		HFinal_top2.block(CPARS+7+j*17,CPARS+7+i*17,8,8) += HFinal_top.block(CPARS+j*8,CPARS+i*8,8,8);
 		//pose
+		// ZMH: (pose,a,b)i-(pose,a,b)j block from imu factor
 		HFinal_top2.block(CPARS+7+i*17,CPARS+7+j*17,6,6) += H_imu.block(7+i*15,7+j*15,6,6);
 		HFinal_top2.block(CPARS+7+j*17,CPARS+7+i*17,6,6) += H_imu.block(7+j*15,7+i*15,6,6);
 		//v bg ba
+		// ZMH: (v,bg,ba)i-(v,bg,ba)j block from imu factor
 		HFinal_top2.block(CPARS+7+i*17+8,CPARS+7+j*17+8,9,9) += H_imu.block(7+i*15+6,7+j*15+6,9,9);
 		HFinal_top2.block(CPARS+7+j*17+8,CPARS+7+i*17+8,9,9) += H_imu.block(7+j*15+6,7+i*15+6,9,9);
 		//v bg ba,pose
+		// ZMH: (v,bg,ba)i-(pose)j block from imu factor
 		HFinal_top2.block(CPARS+7+i*17+8,CPARS+7+j*17,9,6) += H_imu.block(7+i*15+6,7+j*15,9,6);
 		HFinal_top2.block(CPARS+7+j*17,CPARS+7+i*17+8,6,9) += H_imu.block(7+j*15,7+i*15+6,6,9);
 		//pose,v bg ba
 		HFinal_top2.block(CPARS+7+i*17,CPARS+7+j*17+8,6,9) += H_imu.block(7+i*15,7+j*15+6,6,9);
 		HFinal_top2.block(CPARS+7+j*17+8,CPARS+7+i*17,9,6) += H_imu.block(7+j*15+6,7+i*15,9,6);		
 	    }
+		// ZMH: visual residual
 	    bFinal_top2.block(CPARS+7+17*i,0,8,1) += bFinal_top.block(CPARS+8*i,0,8,1);
+		// ZMH: imu residual
 	    bFinal_top2.block(CPARS+7+17*i,0,6,1) += b_imu.block(7+15*i,0,6,1);
 	    bFinal_top2.block(CPARS+7+17*i+8,0,9,1) += b_imu.block(7+15*i+6,0,9,1);
 	}
+	// ZMH: should be marginalized factor from imu factor and bias factor?
 	HFinal_top2 += (HM_imu + HM_bias);
 // 	bFinal_top2 += (bM_imu + bM_bias);
 	bFinal_top2 += (bM_top_imu + bM_bias);

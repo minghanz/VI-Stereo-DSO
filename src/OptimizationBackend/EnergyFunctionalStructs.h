@@ -47,7 +47,7 @@ class EnergyFunctional;
 
 
 
-
+// ZMH: a structure holding the residual term of a point in a host frame w.r.t. a target frame.
 class EFResidual
 {
 public:
@@ -141,7 +141,10 @@ public:
 };
 
 
-
+// ZMH: hold the hessian and delta (deviation from linearization point?) of the frame pose and affine params
+// ZMH: hold a vector of EFPoint
+// ZMH: hold the pointer to the corresponding FrameHessian
+// ZMH: used in back-end optimization
 class EFFrame
 {
 public:

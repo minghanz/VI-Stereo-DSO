@@ -111,6 +111,7 @@ struct FrameFramePrecalc
 struct FrameHessian
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+	// ZMH: hold the pointer of corresponding EFFrame
 	EFFrame* efFrame;
 
 	// constant info & pre-calculated values
@@ -149,6 +150,7 @@ struct FrameHessian
 	Vec6 nullspaces_scale;
 
 	// variable info.
+	// ZMH: evalPT is the evaluation point/linearization point \zeta_0
 	SE3 worldToCam_evalPT;
 	Vec10 state_zero;
 	Vec10 state_scaled;
@@ -165,7 +167,7 @@ struct FrameHessian
 	Vec3 bias_g = Vec3::Zero();
 	Vec3 bias_a = Vec3::Zero();
 
-
+	// ZMH: evalPT is the evaluation point/linearization point \zeta_0
     EIGEN_STRONG_INLINE const SE3 &get_worldToCam_evalPT() const {return worldToCam_evalPT;}
     EIGEN_STRONG_INLINE const Vec10 &get_state_zero() const {return state_zero;}
     EIGEN_STRONG_INLINE const Vec10 &get_state() const {return state;}
@@ -174,7 +176,9 @@ struct FrameHessian
 
 
 	// precalc values
+	// ZMH: the current state estimate x_0 + \zeta_0
 	SE3 PRE_worldToCam;
+	// ZMH: the current state estimate x_0 + \zeta_0
 	SE3 PRE_camToWorld;
 	std::vector<FrameFramePrecalc,Eigen::aligned_allocator<FrameFramePrecalc>> targetPrecalc;
 	MinimalImageB3* debugImage;
@@ -202,6 +206,8 @@ struct FrameHessian
 		PRE_camToWorld = PRE_worldToCam.inverse();
 		//setCurrentNullspace();
 	};
+	// ZMH: only state[6] and [7] are initialized (this function is called only in one place)
+	// ZMH: this function renewed this->state and this->state_scaled
 	inline void setStateScaled(const Vec10 &state_scaled)
 	{
 
@@ -226,7 +232,8 @@ struct FrameHessian
 	};
 
 
-
+	// ZMH: set evaluation point (linearization point?). All states are relative to this point therefore set to zero
+	// ZMH: the numerical derivative at current point is calculated
 	inline void setEvalPT_scaled(const SE3 &worldToCam_evalPT, const AffLight &aff_g2l)
 	{
 		Vec10 initial_state = Vec10::Zero();

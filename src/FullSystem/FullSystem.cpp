@@ -283,7 +283,9 @@ void FullSystem::printResult(std::string file)
 	myfile.close();
 }
 
-
+// ZMH: initial frame tracking (3.1. Step 1 in 24 DSO paper)
+// ZMH: try multiple assumptions as initialization
+// ZMH: depth is not updated
 Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 {
 
@@ -418,6 +420,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	Vec5 achievedRes = Vec5::Constant(NAN);
 	bool haveOneGood = false;
 	int tryIterations=0;
+	// ZMH: iterate over all assumptions of incremental motions (constant motion, double motion, ... and 27 template motions)
 	for(unsigned int i=0;i<lastF_2_fh_tries.size();i++)
 	{
 		if(use_stereo&&frameHessians.size()<setting_maxFrames-1){
@@ -532,6 +535,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	return Vec4(achievedRes[0], flowVecs[0], flowVecs[1], flowVecs[2]);
 }
 
+// ZMH: update immature points in existing active frames by tracking them in the new frame?
 void FullSystem::traceNewCoarse(FrameHessian* fh)
 {
 	boost::unique_lock<boost::mutex> lock(mapMutex);
@@ -749,7 +753,8 @@ void FullSystem::activatePointsMT_Reductor(
 }
 
 
-
+// ZMH: select points in the set of immaure points in the active frames to add to mature points (in PointHessian type)
+// ZMH: it only happens when a new keyframe is added (some immature points in past active keyframes become mature here)
 void FullSystem::activatePointsMT()
 {
 	if(ef->nPoints < setting_desiredPointDensity*0.66)
@@ -1106,6 +1111,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, ImageAndExposure* imag
 		{
 			initializeFromInitializer(fh);
 			lock.unlock();
+			// ZMH: make a keyframe
 			deliverTrackedFrame(fh, fh_right, true);
 			
 		}
@@ -1211,7 +1217,9 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, ImageAndExposure* imag
 }
 void FullSystem::initFirstFrame_imu(FrameHessian* fh){
 	int index;
+	// ZMH: imu_time_stamp is global variable, loaded at the beginning of main function. 
 	if(imu_time_stamp.size()>0){
+		// ZMH: find the closest imu time after the current picture time 
 	    for(int i=0;i<imu_time_stamp.size();++i){
 		if(imu_time_stamp[i]>=pic_time_stamp[fh->shell->incoming_id]||fabs(imu_time_stamp[i]-pic_time_stamp[fh->shell->incoming_id])<0.001){
 		      index = i;
@@ -1221,6 +1229,7 @@ void FullSystem::initFirstFrame_imu(FrameHessian* fh){
 	}
 	int index2 = 0;
 	if(gt_time_stamp.size()>0){
+		// ZMH: find the closest timestamp in ground truth path logger after the current picture time 
 	    for(int i=0;i<gt_time_stamp.size();++i){
 		if(gt_time_stamp[i]>=pic_time_stamp[fh->shell->incoming_id]||fabs(gt_time_stamp[i]-pic_time_stamp[fh->shell->incoming_id])<0.001){
 		      index2 = i;
@@ -1236,10 +1245,16 @@ void FullSystem::initFirstFrame_imu(FrameHessian* fh){
 	}
 	double norm = g_b.norm();
 	g_b = -g_b/norm;
+	// ZMH: g_b: average direction vector of acceleration measurement (gravity)
+	// ZMH: g_c: average direction vector of acceleration measurement (gravity) in camera frame
 	Vec3 g_c = T_BC.inverse().rotationMatrix()*g_b;
 
 	norm = g_c.norm();
 	g_c = g_c/norm;
+	// ZMH: n: cross product of g_v and g_w
+	// ZMH: theta is the rotation angle between the camera frame and the earth inertial frame (world frame)
+	// ZMH: tan(theta) = ||g_c x g_w|| / (g_c . g_w)
+	// ZMH: see eq.25 in VI07
 	Vec3 n = Sophus::SO3::hat(g_c)*g_w;
 
 	norm = n.norm();
@@ -1249,8 +1264,11 @@ void FullSystem::initFirstFrame_imu(FrameHessian* fh){
 
 	Mat33 R_wc = cos_theta*Mat33::Identity()+(1-cos_theta)*n*n.transpose()+sin_theta*Sophus::SO3::hat(n);
 
+	// ZMH: transformation of point from camera frame to world frame
 	SE3 T_wc(R_wc,Vec3::Zero());
+
 	if(gt_path.size() > 0)
+		// ZMH: transformation of point from ground truth logger's origin frame to world frame
 	    T_WR_align = T_wc * T_BC.inverse()*gt_pose[index2].inverse();
 	else
 	    T_WR_align = SE3();
@@ -1259,6 +1277,7 @@ void FullSystem::initFirstFrame_imu(FrameHessian* fh){
 	fh->shell->camToWorld = T_wc;
 	fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
 
+	// ZMH: d frame is dso frame, which is aligned with world frame
 	Mat33 R_wd = Mat33::Identity();
 
 	T_WD = Sim3(RxSO3(1,R_wd),Vec3::Zero());
@@ -1314,6 +1333,7 @@ void FullSystem::savetrajectory_tum(const SE3 &T, double time){
 	}
 }
 
+// ZMH: Make a keyframe (or not)
 void FullSystem::deliverTrackedFrame(FrameHessian* fh, FrameHessian* fh_right, bool needKF)
 {
 
@@ -1456,6 +1476,12 @@ void FullSystem::makeNonKeyFrame( FrameHessian* fh, FrameHessian* fh_right)
 	delete fh_right;
 }
 
+// ZMH: set the evaluation (linearization) point of this FrameHessian, and update idepth of immature points host by this frame (traceNewCoarse)
+// ZMH: then push this FrameHessian to frameHessians vector and add a EFFrame to the energyFunctional
+// ZMH: then set precalcValues (fast retrieve of relative transformation between keyframes using current estimation)
+// ZMH: then add PointFrameResidual of active points in other active keyframes projected on this new incoming new keyframe
+// ZMH: also marginalizing one keyframe and related points
+// ZMH: and add new points in the new keyframe to be tracked in following frames
 void FullSystem::makeKeyFrame( FrameHessian* fh, FrameHessian* fh_right)
 {
 	// needs to be set by mapping thread
@@ -1631,6 +1657,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	boost::unique_lock<boost::mutex> lock(mapMutex);
 
 	// add firstframe.
+	// ZMH: initialize both the FrameHessian and the EFFrame object
 	FrameHessian* firstFrame = coarseInitializer->firstFrame;
 	firstFrame->idx = frameHessians.size();
 	frameHessians.push_back(firstFrame);
@@ -1657,6 +1684,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 		sumID += coarseInitializer->points[0][i].iR;
 		numID++;
 	}
+	// ZMH: to scale the average idepth to 1
 	float rescaleFactor = 1 / (sumID / numID);
 
 	// randomly sub-select the points I need.
@@ -1742,14 +1770,17 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	}
 	else{
 	    for(int i=0;i<coarseInitializer->numPoints[0];i++){
+		// ZMH: randomly skip some of the points
 		if(rand()/(float)RAND_MAX > keepPercentage) continue;
     
     		Pnt* point = coarseInitializer->points[0]+i;
+			// ZMH: initialize a ImmaturePoint object for the point
     		ImmaturePoint* pt = new ImmaturePoint(point->u+0.5f,point->v+0.5f,firstFrame,point->my_type, &Hcalib);
     
     		if(!std::isfinite(pt->energyTH)) { delete pt; continue; }
     
     
+			// ZMH: initialize a PointHessian object for the point and delete the Immature Point object
     		pt->idepth_max=pt->idepth_min=1;
     		PointHessian* ph = new PointHessian(pt, &Hcalib);
     		delete pt;
@@ -1760,6 +1791,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
     		ph->hasDepthPrior=true;
     		ph->setPointStatus(PointHessian::ACTIVE);
     
+			// ZMH: add the PointHessian to the FrameHessian and the EFFrame
     		firstFrame->pointHessians.push_back(ph);
     		ef->insertPoint(ph);
 	    }
@@ -1794,6 +1826,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 // 	if((int)firstFrame->pointHessians.size()<600)initFailed=true;
 }
 
+// ZMH: Select candidate points in the new keyframe to be tracked in following frames, and initialize a ImmaturePoint structure for each of them
 void FullSystem::makeNewTraces(FrameHessian* newFrame, float* gtDepth)
 {
 	pixelSelector->allowFast = true;
@@ -1822,7 +1855,9 @@ void FullSystem::makeNewTraces(FrameHessian* newFrame, float* gtDepth)
 }
 
 
-
+// ZMH: prepare for fast retrieve of relative transformations among all keyframes in frameHessians vector
+// ZMH: (saved in targetPrecalc vector in each FrameHessian
+// ZMH: Then set all DeltaFs in the EFFrames and EFPoints through the energyFunctional
 void FullSystem::setPrecalcValues()
 {
 	for(FrameHessian* fh : frameHessians)

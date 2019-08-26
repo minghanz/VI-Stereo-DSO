@@ -76,6 +76,7 @@ public:
 	PointHessian* point;
 	FrameHessian* host;
 	FrameHessian* target;
+	// ZMH: Jpdxi, JPdC, JPdd value given at linearization when a new keyframe is added and the system is to be solved (PointFrameResidual::linearize)
 	RawResidualJacobian* J;
 
 

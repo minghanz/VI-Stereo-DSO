@@ -70,14 +70,15 @@ void PointHessian::release()
 	residuals.clear();
 }
 
-
+// ZMH: only state_zero[6] and [7] are not zero
+// calculate nullspace around the linearization point
 void FrameHessian::setStateZero(const Vec10 &state_zero)
 {
 	assert(state_zero.head<6>().squaredNorm() < 1e-20);
 
 	this->state_zero = state_zero;
 
-
+	// ZMH: numeric differentiation around current worldToCam_evalPT with purturbation in each dimension of se3
 	for(int i=0;i<6;i++)
 	{
 		Vec6 eps; eps.setZero(); eps[i] = 1e-3;
@@ -90,6 +91,7 @@ void FrameHessian::setStateZero(const Vec10 &state_zero)
 	//nullspaces_pose.topRows<3>() *= SCALE_XI_TRANS_INVERSE;
 	//nullspaces_pose.bottomRows<3>() *= SCALE_XI_ROT_INVERSE;
 
+	// ZMH: numeric differentiation around current worldToCam_evalPT with purturbation in scale
 	// scale change
 	SE3 w2c_leftEps_P_x0 = (get_worldToCam_evalPT());
 	w2c_leftEps_P_x0.translation() *= 1.00001;
@@ -124,7 +126,7 @@ void FrameHessian::release()
 	immaturePoints.clear();
 }
 
-
+// ZMH: assign values to dIp(multiple levels, each pixel with intensity and dx, dy) and dabs_l (addActiveFrame(dx^2+dy^2) in FrameHessian
 void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 {
 
@@ -135,6 +137,8 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 	}
 	dI = dIp[0];
 
+	// ZMH: dIp has multiple levels corresponding to the pyramid
+	// ZMH: dI_l has three channels: intensity, dx, dy
 
 	// make d0
 	int w=wG[0];
@@ -190,17 +194,20 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 	}
 }
 
+// ZMH: prepare for fast retrieve of relative transformation between host and target frame based on linearization point and current estimation
 void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )
 {
 	this->host = host;
 	this->target = target;
 
+	// ZMH: frame-frame pose using \zeta_0 (linearization point)
 	SE3 leftToLeft_0 = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
 	PRE_RTll_0 = (leftToLeft_0.rotationMatrix()).cast<float>();
 	PRE_tTll_0 = (leftToLeft_0.translation()).cast<float>();
 
 
 
+	// ZMH: frame-frame pose using x + \zeta_0 (current estimation)
 	SE3 leftToLeft = target->PRE_worldToCam * host->PRE_camToWorld;
 	PRE_RTll = (leftToLeft.rotationMatrix()).cast<float>();
 	PRE_tTll = (leftToLeft.translation()).cast<float>();

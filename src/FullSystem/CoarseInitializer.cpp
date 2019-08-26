@@ -79,7 +79,9 @@ CoarseInitializer::~CoarseInitializer()
 	delete[] JbBuffer_new;
 }
 
-
+// ZMH: return true if current frame is snapped (moved a lot which means initialization is needed) and the past five frames are all snapped
+// ZMH: this function is called only at one place in addActiveFrame function when the system is uninitialized
+// ZMH: note that the variables estimated here are all in CoarseInitializer
 bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps)
 {
 	newFrame = newFrameHessian;
@@ -129,6 +131,7 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 		if(lvl<pyrLevelsUsed-1)
 			propagateDown(lvl+1);
 
+		// ZMH: the first 6 dimension of increment is for se3, 7th and 8th are for affine lighting parameters a and b
 		Mat88f H,Hsc; Vec8f b,bsc;
 		resetPoints(lvl);
 		Vec3f resOld = calcResAndGS(lvl, H, b, Hsc, bsc, refToNew_current, refToNew_aff_current, false);
@@ -138,6 +141,7 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 		float eps = 1e-4;
 		int fails=0;
 
+		// ZMH: before optimization? 
 		if(printDebug)
 		{
 			printf("lvl %d, it %d (l=%f) %s: %.3f+%.5f -> %.3f+%.5f (%.3f->%.3f) (|inc| = %f)! \t",
@@ -157,14 +161,15 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 		while(true)
 		{
 			Mat88f Hl = H;
-			for(int i=0;i<8;i++) Hl(i,i) *= (1+lambda);
+			for(int i=0;i<8;i++) Hl(i,i) *= (1+lambda); // ZMH: LM version of Gauss Newton (damping)? 
 			Hl -= Hsc*(1/(1+lambda));
 			Vec8f bl = b - bsc*(1/(1+lambda));
 
+			// ZMH: wM is for scaling
 			Hl = wM * Hl * wM * (0.01f/(w[lvl]*h[lvl]));
 			bl = wM * bl * (0.01f/(w[lvl]*h[lvl]));
 
-
+			// ZMH: solve increment through Gauss-Newton! 
 			Vec8f inc;
 			if(fixAffine)
 			{
@@ -175,17 +180,22 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 				inc = - (wM * (Hl.ldlt().solve(bl)));	//=-H^-1 * b.
 
 
+			// ZMH: Update poss of new frame, affine photometric parameters, and depth (idepth_new) of each selected points
+			// ZMH: the first 6 dimension of increment is for se3, 7th and 8th are for affine lighting parameters a and b
 			SE3 refToNew_new = SE3::exp(inc.head<6>().cast<double>()) * refToNew_current;
 			AffLight refToNew_aff_new = refToNew_aff_current;
 			refToNew_aff_new.a += inc[6];
 			refToNew_aff_new.b += inc[7];
 			doStep(lvl, lambda, inc);
 
-
+			// ZMH: calculate new H and b using updated pose, photometric parameters and point depth
 			Mat88f H_new, Hsc_new; Vec8f b_new, bsc_new;
 			Vec3f resNew = calcResAndGS(lvl, H_new, b_new, Hsc_new, bsc_new, refToNew_new, refToNew_aff_new, false);
 			Vec3f regEnergy = calcEC(lvl);
 
+			// ZMH: compare error of updated states with before, accept if improved
+			// ZMH: including photometric error, i depth distance to 1 (discouraging infinite depth), 
+			// ZMH: and regression energy (discouraging huge change in depth estimation)
 			float eTotalNew = (resNew[0]+resNew[1]+regEnergy[1]);
 			float eTotalOld = (resOld[0]+resOld[1]+regEnergy[0]);
 
@@ -209,6 +219,7 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 				std::cout << refToNew_new.log().transpose() << " AFF " << refToNew_aff_new.vec().transpose() <<"\n";
 			}
 
+			// ZMH: if accept, substitude formal state estimation with newly estimated one, else increase lambda (damping)
 			if(accept)
 			{
 
@@ -236,6 +247,7 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 
 			bool quitOpt = false;
 
+			// ZMH: quit if increment is very small or iteration arrives maximum or failed twice
 			if(!(inc.norm() > eps) || iteration >= maxIterations[lvl] || fails >= 2)
 			{
 				Mat88f H,Hsc; Vec8f b,bsc;
@@ -273,7 +285,7 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
     debugPlot(0,wraps);
 
 
-
+	// ZMH: if current frame is snapped and the past five frames are all snapped
 	return snapped && frameID > snappedAt+5;
 }
 
@@ -328,6 +340,7 @@ void CoarseInitializer::debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*>
 }
 
 // calculates residual, Hessian and Hessian-block neede for re-substituting depth.
+// ZMH: returned terms are photometric error, alpha_energy (the term that encourage idepth to be close to 1, or discouraging infinite depth), and num of points
 Vec3f CoarseInitializer::calcResAndGS(
 		int lvl, Mat88f &H_out, Vec8f &b_out,
 		Mat88f &H_out_sc, Vec8f &b_out_sc,
@@ -338,6 +351,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 	Eigen::Vector3f* colorRef = firstFrame->dIp[lvl];
 	Eigen::Vector3f* colorNew = newFrame->dIp[lvl];
 
+	// ZMH: note that the Ki is inverse of K, projecting pixel coordinate to unit depth in image 3D frame
 	Mat33f RKi = (refToNew.rotationMatrix() * Ki[lvl]).cast<float>();
 	Vec3f t = refToNew.translation().cast<float>();
 	Eigen::Vector2f r2new_aff = Eigen::Vector2f(exp(refToNew_aff.a), refToNew_aff.b);
@@ -384,12 +398,15 @@ Vec3f CoarseInitializer::calcResAndGS(
 		// sum over all residuals.
 		bool isGood = true;
 		float energy=0;
+		// ZMH: iteratre over the eight points in the pattern
 		for(int idx=0;idx<patternNum;idx++)
 		{
 			int dx = patternP[idx][0];
 			int dy = patternP[idx][1];
 
-
+			// ZMH: transform the pattern point to new image frame from reference image frame
+			// ZMH: p = R * (Ki * [u, v, 1] * d) + t, pt = p/d = R * (Ki * [u,v,1]) + t/d = R * (Ki * [u,v,1]) + t*id
+			// ZMH: new_d = p[2] = pt[2] * d = pt[2] / id
 			Vec3f pt = RKi * Vec3f(point->u+dx, point->v+dy, 1) + t*point->idepth_new;
 			float u = pt[0] / pt[2];
 			float v = pt[1] / pt[2];
@@ -406,6 +423,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 			Vec3f hitColor = getInterpolatedElement33(colorNew, Ku, Kv, wl);
 			//Vec3f hitColor = getInterpolatedElement33BiCub(colorNew, Ku, Kv, wl);
 
+			// ZMH: intensity in the reference image
 			//float rlR = colorRef[point->u+dx + (point->v+dy) * wl][0];
 			float rlR = getInterpolatedElement31(colorRef, point->u+dx, point->v+dy, wl);
 
@@ -415,20 +433,28 @@ Vec3f CoarseInitializer::calcResAndGS(
 				break;
 			}
 
-
+			// ZMH: intensity residual
 			float residual = hitColor[0] - r2new_aff[0] * rlR - r2new_aff[1];
+
+			// ZMH: Huber weight
 			float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
+
+			// ZMH: Accumulate energy using weighted intensity residual
 			energy += hw *residual*residual*(2-hw);
 
 
 
-
+			// ZMH: derivative of reprojected location w.r.t. depth (or idepth?)
 			float dxdd = (t[0]-t[2]*u)/pt[2];
 			float dydd = (t[1]-t[2]*v)/pt[2];
 
 			if(hw < 1) hw = sqrtf(hw);
+			// ZMH: derivative of energy w.r.t. u v location of reprojected point
 			float dxInterp = hw*hitColor[1]*fxl;
 			float dyInterp = hw*hitColor[2]*fyl;
+			
+			// ZMH: dp0~dp5 derivative of energy w.r.t. se3(x, y, z, rotation_x, ry, rz)
+			// ZMH: dp6~dp7 derivative of energy w.r.t. affine photometric parameter a b
 			dp0[idx] = new_idepth*dxInterp;
 			dp1[idx] = new_idepth*dyInterp;
 			dp2[idx] = -new_idepth*(u*dxInterp + v*dyInterp);
@@ -444,6 +470,8 @@ Vec3f CoarseInitializer::calcResAndGS(
 			if(maxstep < point->maxstep) point->maxstep = maxstep;
 
 			// immediately compute dp*dd' and dd*dd' in JbBuffer1.
+			// ZMH: accumulate the J and b of current point in the 8-point pattern to the selected point owning this 8-point pattern
+			// ZMH: no camera intrinsic parameter optimization information in Jbbuffer
 			JbBuffer_new[i][0] += dp0[idx]*dd[idx];
 			JbBuffer_new[i][1] += dp1[idx]*dd[idx];
 			JbBuffer_new[i][2] += dp2[idx]*dd[idx];
@@ -458,6 +486,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 
 		if(!isGood || energy > point->outlierTH*20)
 		{
+			// ZMH: use previously 
 			E.updateSingle((float)(point->energy[0]));
 			point->isGood_new = false;
 			point->energy_new = point->energy;
@@ -470,6 +499,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 		point->isGood_new = true;
 		point->energy_new[0] = energy;
 
+		// ZMH: why i+=4?: batch update four points in the pattern at a time
 		// update Hessian matrix.
 		for(int i=0;i+3<patternNum;i+=4)
 			acc9.updateSSE(
@@ -484,6 +514,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 					_mm_load_ps(((float*)(&r))+i));
 
 
+		// ZMH: update the left points in the pattern (mode of the number of pattern points by 4)
 		for(int i=((patternNum>>2)<<2); i < patternNum; i++)
 			acc9.updateSingle(
 					(float)dp0[i],(float)dp1[i],(float)dp2[i],(float)dp3[i],
@@ -518,6 +549,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 		}
 	}
 	EAlpha.finish();
+	// ZMH: If this term is too large, it means that the camera moved suddenly and may need reinitialization
 	float alphaEnergy = alphaW*(EAlpha.A + refToNew.translation().squaredNorm() * npts);
 
 	//printf("AE = %f * %f + %f\n", alphaW, EAlpha.A, refToNew.translation().squaredNorm() * npts);
@@ -543,6 +575,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 		if(!point->isGood_new)
 			continue;
 
+		// ZMH: the Hessian block (JTJ) of idepth estimation (dd * dd)
 		point->lastHessian_new = JbBuffer_new[i][9];
 
 		JbBuffer_new[i][8] += alphaOpt*(point->idepth_new - 1);
@@ -609,7 +642,7 @@ float CoarseInitializer::rescale()
 	return factor;
 }
 
-
+// ZMH: this is about the accumulated difference of depth estimation of all points compared with previous estimation
 Vec3f CoarseInitializer::calcEC(int lvl)
 {
 	if(!snapped) return Vec3f(0,0,numPoints[lvl]);
@@ -631,6 +664,9 @@ Vec3f CoarseInitializer::calcEC(int lvl)
 	//printf("ER: %f %f %f!\n", couplingWeight*E.A1m[0], couplingWeight*E.A1m[1], (float)E.num.numIn1m);
 	return Vec3f(couplingWeight*E.A1m[0], couplingWeight*E.A1m[1], E.num);
 }
+
+// ZMH: average iR (regularized idepth) with neighboring selected pixels (created in makeNN function)
+// ZMH: this is where iR is different from idepth
 void CoarseInitializer::optReg(int lvl)
 {
 	int npts = numPoints[lvl];
@@ -643,6 +679,7 @@ void CoarseInitializer::optReg(int lvl)
 	}
 
 
+	// ZMH: This part is to average iR (regularized idepth) with neighboring selected pixels (created in makeNN function)
 	for(int i=0;i<npts;i++)
 	{
 		Pnt* point = ptsl+i;
@@ -662,6 +699,7 @@ void CoarseInitializer::optReg(int lvl)
 		if(nnn > 2)
 		{
 			std::nth_element(idnn,idnn+nnn/2,idnn+nnn);
+			// ZMH: what is the difference between idepth and iR?
 			point->iR = (1-regWeight)*point->idepth + regWeight*idnn[nnn/2];
 		}
 	}
@@ -669,7 +707,8 @@ void CoarseInitializer::optReg(int lvl)
 }
 
 
-
+// ZMH: this function propogate depth in lower level to higher level
+// ZMH: higher level (coarser) is the parent of lower level (finer)
 void CoarseInitializer::propagateUp(int srcLvl)
 {
 	assert(srcLvl+1<pyrLevelsUsed);
@@ -688,6 +727,8 @@ void CoarseInitializer::propagateUp(int srcLvl)
 		parent->iRSumNum=0;
 	}
 
+	// ZMH: more than one point in lower level may share the same parent point in higher level
+	// They update the iR of parent point together weighted by Hessian (inverse of covariance)
 	for(int i=0;i<nptss;i++)
 	{
 		Pnt* point = ptss+i;
@@ -710,7 +751,7 @@ void CoarseInitializer::propagateUp(int srcLvl)
 
 	optReg(srcLvl+1);
 }
-
+// ZMH: propagate points in higher level(coarser resolution) to lower level(finer resolution)
 void CoarseInitializer::propagateDown(int srcLvl)
 {
 	assert(srcLvl>0);
@@ -728,12 +769,14 @@ void CoarseInitializer::propagateDown(int srcLvl)
 		if(!parent->isGood || parent->lastHessian < 0.1) continue;
 		if(!point->isGood)
 		{
+			// ZMH: if the estimation this point in current level is not good, directly use the value of the higher (coarser) level
 			point->iR = point->idepth = point->idepth_new = parent->iR;
 			point->isGood=true;
 			point->lastHessian=0;
 		}
 		else
 		{
+			// ZMH: weighted average between iR of this point in current level and that of the higher level
 			float newiR = (point->iR*point->lastHessian*2 + parent->iR*parent->lastHessian) / (point->lastHessian*2+parent->lastHessian);
 			point->iR = point->idepth = point->idepth_new = newiR;
 		}
@@ -782,6 +825,8 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 	{
 		sel.currentPotential = 3;
 		int npts;
+		// ZMH: on the first level (original resolution), the pixel selection is with uncertainty, 
+		// ZMH: while the higher levels are selected with grid max adding to lower level results
 		if(lvl == 0)
 			npts = sel.makeMaps(firstFrame, statusMap,densities[lvl]*w[0]*h[0],1,false,2);
 		else
@@ -794,12 +839,15 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 
 		// set idepth map to initially 1 everywhere.
 		int wl = w[lvl], hl = h[lvl];
+
+		// ZMH: pointer to the start of array of Pnt objects of each selected pixels
 		Pnt* pl = points[lvl];
 		int nl = 0;
 		for(int y=patternPadding+1;y<hl-patternPadding-2;y++)
 		for(int x=patternPadding+1;x<wl-patternPadding-2;x++)
 		{
 			//if(x==2) printf("y=%d!\n",y);
+			// ZMH: process the selected pixels only, and it should be inside the padding margin 
 			if((lvl!=0 && statusMapB[x+y*wl]) || (lvl==0 && statusMap[x+y*wl] != 0))
 			{
 				//assert(patternNum==9);
@@ -813,6 +861,7 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 				pl[nl].lastHessian_new=0;
 				pl[nl].my_type= (lvl!=0) ? 1 : statusMap[x+y*wl];
 
+				// ZMH: calculate absgrad of 8 SSE points (the result not used anywhere?)
 				Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y*w[lvl];
 				float sumGrad2=0;
 				for(int idx=0;idx<patternNum;idx++)
@@ -1057,6 +1106,7 @@ void CoarseInitializer::setFirstStereo(	CalibHessian* HCalib, FrameHessian* newF
 
 }
 
+// ZMH: set energy of each point to zero, average iR(idepth) with its neighbors
 void CoarseInitializer::resetPoints(int lvl)
 {
 	Pnt* pts = points[lvl];
@@ -1085,6 +1135,8 @@ void CoarseInitializer::resetPoints(int lvl)
 		}
 	}
 }
+
+// ZMH: the idepth_new of each selected Pnt is updated in this function using GN
 void CoarseInitializer::doStep(int lvl, float lambda, Vec8f inc)
 {
 
@@ -1114,6 +1166,7 @@ void CoarseInitializer::doStep(int lvl, float lambda, Vec8f inc)
 	}
 
 }
+// ZMH: apply the values with "_new" to original ones
 void CoarseInitializer::applyStep(int lvl)
 {
 	Pnt* pts = points[lvl];

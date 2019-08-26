@@ -100,15 +100,18 @@ public:
 	std::vector<EFFrame*> frames;
 	int nPoints, nFrames, nResiduals;
 
+	// ZMH: H and b for all the keyframes (in the sliding window?) in vision-only graph
 	MatXX HM;
 	VecX bM;
-	
+
+	// ZMH: H and b for all the keyframes (in the sliding window?) in complete graph
 	MatXX HM_imu;
 	VecX bM_imu;
 	
 	MatXX HM_bias;
 	VecX bM_bias;
 	
+	// ZMH: H and b for all the keyframes (in the sliding window?) in intermediate graph
 	MatXX HM_imu_half;
 	VecX bM_imu_half;
 	

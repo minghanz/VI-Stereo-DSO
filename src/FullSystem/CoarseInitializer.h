@@ -92,7 +92,12 @@ public:
 	bool fixAffine;
 	bool printDebug;
 
+	// ZMH: array of Pnt objecys for each selected pixels in current level of pyramid
+	// ZMH: see CoarseInitializer::setFirst function
 	Pnt* points[PYR_LEVELS];
+
+	// ZMH: number of selected points in each level of pyramid (selected from cell and inside margin to be able to calculate SSE pattern)
+	// ZMH: see CoarseInitializer::setFirst function
 	int numPoints[PYR_LEVELS];
 	AffLight thisToNext_aff;
 	SE3 thisToNext;

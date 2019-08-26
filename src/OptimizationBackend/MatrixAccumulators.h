@@ -111,7 +111,7 @@ public:
 	A=SSEData1m[0+0] + SSEData1m[0+1] + SSEData1m[0+2] + SSEData1m[0+3];
   }
 
-
+  // ZMH: accumulate energy of current point (already a sum of all pattern point)
   inline void updateSingle(
 		  const float val)
   {
@@ -180,6 +180,7 @@ class AccumulatorX
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
+  // ZMH: why set three levels of accumulation? Is it because adding on a large number is more time consuming than adding small numbers?
   Eigen::Matrix<float,i,1> A;
   Eigen::Matrix<float,i,1> A1k;
   Eigen::Matrix<float,i,1> A1m;
@@ -984,6 +985,7 @@ class Accumulator9
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
+  // ZMH: H is given value in finish
   Mat99f H;
   Vec9f b;
   size_t num;
@@ -998,6 +1000,7 @@ public:
     num = numIn1 = numIn1k = numIn1m = 0;
   }
 
+  // ZMH: H is given value here
   inline void finish()
   {
 	H.setZero();
@@ -1016,7 +1019,8 @@ public:
 	  assert(idx==4*45);
   }
 
-
+  // ZMH: update SSEData (the accumulated JTJ (and JTb)) with the JTJ (and JTb) of this point
+  // ZMH: this function works in batch (update four points (in the 8-pattern)) at one time
   inline void updateSSE(
 		  const __m128 J0,const __m128 J1,
 		  const __m128 J2,const __m128 J3,
@@ -1165,7 +1169,8 @@ public:
 	  shiftUp(false);
   }
 
-
+  // ZMH: update SSEData (the accumulated JTJ (and JTb)) with the JTJ (and JTb) of this point
+  // ZMH: this function update one single point (in the 8-pattern) at one time
   inline void updateSingle(
 		  const float J0,const float J1,
 		  const float J2,const float J3,

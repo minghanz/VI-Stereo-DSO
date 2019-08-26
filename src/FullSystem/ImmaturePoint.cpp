@@ -99,6 +99,7 @@ ImmaturePoint::~ImmaturePoint()
  * * UPDATED -> point has been updated.
  * * SKIP -> point has not been updated.
  */
+// ZMH: track the immature point in active frames on new frame through epipolar line search and GN optimization
 ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hostToFrame_KRKi, const Vec3f &hostToFrame_Kt, const Vec2f& hostToFrame_affine, CalibHessian* HCalib, bool debugPrint)
 {
 	if(lastTraceStatus == ImmaturePointStatus::IPS_OOB) return lastTraceStatus;
@@ -283,6 +284,7 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 	int bestIdx=-1;
 	if(numSteps >= 100) numSteps = 99;
 
+	// ZMH: search on epipolar line?
 	for(int i=0;i<numSteps;i++)
 	{
 		float energy=0;

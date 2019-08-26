@@ -916,6 +916,10 @@ void CoarseTracker::setCoarseTrackingRef(
 	firstCoarseRMSE=-1;
 
 }
+
+// ZMH: for initial frame tracking (3.1 Step 1 in DSO paper) (using a guessed motion from constant motion assumption or 27 template motions)
+// ZMH: IMU measurement is used
+// ZMH: only estimate pose, does not update depth
 bool CoarseTracker::trackNewestCoarse(
 		FrameHessian* newFrameHessian,
 		SE3 &lastToNew_out, AffLight &aff_g2l_out,
@@ -926,6 +930,7 @@ bool CoarseTracker::trackNewestCoarse(
 	debugPlot = setting_render_displayCoarseTrackingFull;
 	debugPrint = false;
 
+	printf("coarsestLvl %d, pyrLevelsUsed %d\n", coarsestLvl, pyrLevelsUsed);
 	assert(coarsestLvl < 5 && coarsestLvl < pyrLevelsUsed);
 
 	lastResiduals.setConstant(NAN);
@@ -996,6 +1001,7 @@ bool CoarseTracker::trackNewestCoarse(
 		Vec6 b_imu;
 		Vec9 res_PVPhi;
 		double res_imu_old = 0;
+		// ZMH: IMU constraint only exists at the lowest level (finest, original resolution)
 		if(lvl<=0){
 		    res_imu_old = calcIMUResAndGS(H_imu, b_imu, refToNew_current, IMU_preintegrator,res_PVPhi,resOld[0],imu_track_w[lvl]);
 // 		    LOG(INFO)<<"res_imu_old: "<<res_imu_old<<" resOld[0]: "<<resOld[0]<<" resOld[1]: "<<resOld[0];

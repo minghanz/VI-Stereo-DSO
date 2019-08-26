@@ -54,7 +54,7 @@ private:
 	Eigen::Vector3i select(const FrameHessian* const fh,
 			float* map_out, int pot, float thFactor=1);
 
-
+	// ZMH: to be used together with a threshold between 0~255(FF), in order to randomly determine true or false
 	unsigned char* randomPattern;
 
 

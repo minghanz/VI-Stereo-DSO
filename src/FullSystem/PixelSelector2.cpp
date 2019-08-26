@@ -110,9 +110,11 @@ void PixelSelector::makeHists(const FrameHessian* const fh)
 				hist0[0]++;
 			}
 
+			// ZMH: determine the threshold of absgrad in a 32*32 cell
 			ths[x+y*w32] = computeHistQuantil(hist0,setting_minGradHistCut) + setting_minGradHistAdd;
 		}
 
+	// ZMH: calculate smoothed threshold of each 32*32 cell by averaging with nearby cells
 	for(int y=0;y<h32;y++)
 		for(int x=0;x<w32;x++)
 		{
@@ -143,6 +145,9 @@ void PixelSelector::makeHists(const FrameHessian* const fh)
 
 
 }
+
+// ZMH: Candidate point selection (32*32 grid, multiple levels of smaller grid, select with randomness)
+// ZMH: return number of points finally selected
 int PixelSelector::makeMaps(
 		const FrameHessian* const fh,
 		float* map_out, float density, int recursionsLeft, bool plot, float thFactor)
@@ -188,6 +193,7 @@ int PixelSelector::makeMaps(
 		if(fh != gradHistFrame) makeHists(fh);
 
 		// select!
+		// ZMH: selection result is stored in map_out
 		Eigen::Vector3i n = this->select(fh, map_out,currentPotential, thFactor);
 
 		// sub-select!
@@ -232,6 +238,7 @@ int PixelSelector::makeMaps(
 		}
 	}
 
+	// ZMH: if wanted points are fewer, randomly delete some points
 	int numHaveSub = numHave;
 	if(quotia < 0.95)
 	{
@@ -295,7 +302,9 @@ int PixelSelector::makeMaps(
 }
 
 
-
+// ZMH: pot is short for potential, the size of the smallest cell
+// ZMH: map_out is allocated with selection status for each pixel in this function
+// ZMH: return value is the number of selected pixels in each level
 Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 		float* map_out, int pot, float thFactor)
 {
@@ -342,6 +351,10 @@ Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 	int n3=0, n2=0, n4=0;
 	for(int y4=0;y4<h;y4+=(4*pot)) for(int x4=0;x4<w;x4+=(4*pot))
 	{
+		// ZMH: mx3, my3 are the maximum increment in current cell 
+		// ZMH: (normally it is the step size of the cell of current level).
+		// ZMH: at the edge of the image the maximum increment is smaller.
+		// ZMH: similar for mx2, mx1, my2, my1
 		int my3 = std::min((4*pot), h-y4);
 		int mx3 = std::min((4*pot), w-x4);
 		int bestIdx4=-1; float bestVal4=0;

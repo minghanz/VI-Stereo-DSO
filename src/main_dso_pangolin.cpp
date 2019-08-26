@@ -710,12 +710,21 @@ int main( int argc, char** argv )
 	boost::thread exThread = boost::thread(exitThread);
 
 
+	printf("calib0: %s\n", calib0.c_str() );
 	ImageFolderReader* reader = new ImageFolderReader(source0, calib0, gammaCalib, vignette);
+	printf("reader constructed\n");
+
 	ImageFolderReader* reader_right;
-	if(use_stereo)
-	  reader_right= new ImageFolderReader(source1, calib1, gammaCalib, vignette);
-	else
-	  reader_right= new ImageFolderReader(source0, calib0, gammaCalib, vignette);
+	if(use_stereo){
+		printf("calib1: %s\n", calib1.c_str() );
+		reader_right= new ImageFolderReader(source1, calib1, gammaCalib, vignette);
+	  	printf("reader_right constructed from source 1\n");
+	}
+	else{
+		printf("calib0: %s\n", calib0.c_str() );
+		reader_right= new ImageFolderReader(source0, calib0, gammaCalib, vignette);
+	  	printf("reader_right constructed from source 0\n");
+	}
 	reader->setGlobalCalibration();
 // 	reader_right->setGlobalCalibration();
 	int w_out, h_out;

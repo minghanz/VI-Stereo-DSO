@@ -74,7 +74,7 @@ PointFrameResidual::PointFrameResidual(PointHessian* point_, FrameHessian* host_
 
 
 
-
+// ZMH: Create the Jacobians of this PointFrameResidual
 double PointFrameResidual::linearize(CalibHessian* HCalib)
 {
 	state_NewEnergyWithOutlier=-1;
@@ -105,6 +105,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 		float Ku, Kv;
 		Vec3f KliP;
 
+		// ZMH: Note that the projection is using the linearization point instead of current estimation
 		if(!projectPoint(point->u, point->v, point->idepth_zero_scaled, 0, 0,HCalib,
 				PRE_RTll_0,PRE_tTll_0, drescale, u, v, Ku, Kv, KliP, new_idepth))
 			{ state_NewState = ResState::OOB; return state_energy; }
@@ -113,6 +114,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 
 
 		// diff d_idepth
+		// ZMH: derivative of reprojected point w.r.t. idepth in host frame (?)
 		d_d_x = drescale * (PRE_tTll_0[0]-PRE_tTll_0[2]*u)*SCALE_IDEPTH*HCalib->fxl();
 		d_d_y = drescale * (PRE_tTll_0[1]-PRE_tTll_0[2]*v)*SCALE_IDEPTH*HCalib->fyl();
 
@@ -120,6 +122,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 
 
 		// diff calib
+		// ZMH: derivative of reprojected point w.r.t. camera intrinsic parameters (?)
 		d_C_x[2] = drescale*(PRE_RTll_0(2,0)*u-PRE_RTll_0(0,0));
 		d_C_x[3] = HCalib->fxl() * drescale*(PRE_RTll_0(2,1)*u-PRE_RTll_0(0,1)) * HCalib->fyli();
 		d_C_x[0] = KliP[0]*d_C_x[2];
@@ -141,6 +144,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 		d_C_y[3] = (d_C_y[3]+1)*SCALE_C;
 
 
+		// ZMH: derivative of reprojected point w.r.t. host frame pose (?)
 		d_xi_x[0] = new_idepth*HCalib->fxl();
 		d_xi_x[1] = 0;
 		d_xi_x[2] = -new_idepth*u*HCalib->fxl();
@@ -182,6 +186,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 
 	for(int idx=0;idx<patternNum;idx++)
 	{
+		// ZMH: Note how the photometric Jacobians are evaluated at the current estimate instead of linearization point
 		float Ku, Kv;
 		if(!projectPoint(point->u+patternP[idx][0], point->v+patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
 			{ state_NewState = ResState::OOB; return state_energy; }

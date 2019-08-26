@@ -57,7 +57,8 @@ EIGEN_STRONG_INLINE bool projectPoint(
 }
 
 
-
+// ZMH: return false if a point is out of view after reprojection
+// ZMH: reprojected coordinate is returned as reference of the function arguments (Ku, Ky)
 EIGEN_STRONG_INLINE bool projectPoint(
 		const float &u_pt,const float &v_pt,
 		const float &idepth,
