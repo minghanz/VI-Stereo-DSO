@@ -242,6 +242,10 @@ extern SE3 T_WR_align;
 extern double run_time;
 extern Vec7 step_twd;
 extern Vec7 state_twd;
+// ZMH: add step to update T_CB
+extern Vec6 step_tcb;
+extern Vec6 state_tcb;
+
 extern double imu_weight;
 extern double imu_weight_tracker;
 extern bool imu_use_flag;

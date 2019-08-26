@@ -251,6 +251,11 @@ SE3 T_WR_align = SE3();
 double run_time=0;
 Vec7 step_twd = Vec7::Zero();
 Vec7 state_twd = Vec7::Zero();
+
+// ZMH: add step to update T_CB
+Vec6 step_tcb = Vec6::Zero();
+Vec6 state_tcb = Vec6::Zero();
+
 double imu_weight = 1;
 double imu_weight_tracker = 1;
 bool imu_use_flag = true;
