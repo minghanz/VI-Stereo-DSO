@@ -265,6 +265,8 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 		if(imu_use_flag){
 // 		  T_WD = T_WD*change;
 		  state_twd += stepfacC*step_twd;
+		  // ZMH: add T_CB
+		  state_tcb += stepfacC*step_tcb;
 		  if(std::exp(state_twd[6])<0.1||std::exp(state_twd[6])>10){
 		    initFailed = true;
 		    first_track_flag = false;
@@ -273,7 +275,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 // 		  LOG(INFO)<<"state_twd: "<<state_twd.transpose();
 		  T_WD_change  = Sim3::exp(state_twd);
 
-		  state_tcb += stepfacC*step_tcb;
+		  // ZMH: add T_CB
 		  T_CB_change = SE3::exp(state_tcb);
 
 // 		  Sim3 T_WD_temp = T_WD*T_WD_change;
@@ -284,7 +286,8 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 // 		  if(s_new<1/d_min)s_new = 1/d_min;
 // 		  T_WD = Sim3(RxSO3(s_new*s_wd,T_WD_temp.rotationMatrix()),Vec3::Zero());+
 		  T_WD = T_WD_l*T_WD_change;
-		  T_CB = T_CB_l*T_CB_change;
+		  // ZMH: T_CB_T_CB
+		//   T_CB = T_CB_l*T_CB_change;
 		  
 		  if(M_num2==0){
 		      T_WD_l = T_WD;

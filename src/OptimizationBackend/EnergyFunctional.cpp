@@ -1007,11 +1007,11 @@ void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh){
 	// VecX bM_change_half = VecX::Zero(CPARS+7+nFrames*17);
 
 	// ZMH: add T_CB
-	MatXX HM_change = MatXX::Zero(CPARS+7+nFrames*17+6, CPARS+7+nFrames*17+6);
-	VecX bM_change = VecX::Zero(CPARS+7+nFrames*17+6);
+	MatXX HM_change = MatXX::Zero(CPARS+7+6+nFrames*17, CPARS+7+6+nFrames*17);
+	VecX bM_change = VecX::Zero(CPARS+7+6+nFrames*17);
 	
-	MatXX HM_change_half = MatXX::Zero(CPARS+7+nFrames*17+6, CPARS+7+nFrames*17+6);
-	VecX bM_change_half = VecX::Zero(CPARS+7+nFrames*17+6);
+	MatXX HM_change_half = MatXX::Zero(CPARS+7+6+nFrames*17, CPARS+7+6+nFrames*17);
+	VecX bM_change_half = VecX::Zero(CPARS+7+6+nFrames*17);
 	
 // 	LOG(INFO)<<"fh->idx: "<<fh->idx;
 	double mar_weight = 0.5;
@@ -2201,12 +2201,17 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 // 	    StitchedDelta2.block(CPARS+7+17*i,0,6,1) = temp.block(0,0,6,1);
 // 	}
 	StitchedDelta2.block(CPARS,0,7,1) = state_twd;
+	// ZMH: add T_CB
+	StitchedDelta2.block(CPARS+7,0,6,1) = state_tcb;
 	
 	VecX bM_top_imu = (bM_imu + HM_imu*StitchedDelta2); 
 
 	MatXX H_imu;
 	VecX b_imu;
 	getIMUHessian(H_imu,b_imu);
+
+	LOG(INFO)<<"T_CB: \n"<<T_CB.matrix();
+	LOG(INFO)<<"T_BC: \n"<<T_CB.inverse().matrix();
 
 
 	// ZMH: The visual-only graph. size is CPARS+8*nFrames (8 for pose and a, b)
@@ -2318,8 +2323,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	    HFinal_top2.block(CPARS+7+6+i*17,CPARS+7+6+i*17+8,6,9) += H_imu.block(7+6+i*15,7+6+i*15+6,6,9);
 
 		// ZMH: adding T_CB-pose_i block
-	    HFinal_top2.block(CPARS+7+17*nFrames,CPARS+7+i*17,6,6) += H_imu.block(7+15*nFrames,7+i*15,6,6);
-	    HFinal_top2.block(CPARS+7+i*17,CPARS+7+17*nFrames,6,6) += H_imu.block(7+i*15,7+15*nFrames,6,6);
+	    HFinal_top2.block(CPARS+7,CPARS+7+6+i*17,6,6) += H_imu.block(7,7+6+i*15,6,6);
+	    HFinal_top2.block(CPARS+7+6+i*17,CPARS+7,6,6) += H_imu.block(7+6+i*15,7,6,6);
 
 		// ZMH: adding T_CB-(v,bg,va)i block
 	    HFinal_top2.block(CPARS+7,CPARS+7+6+i*17+8,6,9) += H_imu.block(7,7+6+i*15+6,6,9);
