@@ -287,7 +287,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 // 		  T_WD = Sim3(RxSO3(s_new*s_wd,T_WD_temp.rotationMatrix()),Vec3::Zero());+
 		  T_WD = T_WD_l*T_WD_change;
 		  // ZMH: T_CB_T_CB
-		//   T_CB = T_CB_l*T_CB_change;
+		  T_CB = T_CB_l*T_CB_change;
 		  
 		  if(M_num2==0){
 		      T_WD_l = T_WD;

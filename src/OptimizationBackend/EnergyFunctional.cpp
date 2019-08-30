@@ -368,6 +368,9 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	if(frames.size()<setting_maxFrames){
 		J_pose_cb = Mat66::Zero();
 	}
+	// ZMH: T_CB_switch_run_mode
+	J_pose_cb.block(0,0,3,3) = Mat33::Zero();
+
 	J_all.block(0,7,9,6) += J_res_posebi.block(0,0,9,6)*J_pose_cb;
 	J_all.block(0,7,9,6) += J_res_posebj.block(0,0,9,6)*J_pose_cb;
 
@@ -1240,14 +1243,14 @@ void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh){
 	    J_all.block(0,CPARS,9,3) = Mat93::Zero();
 
 		// ZMH: add a section for derivative w.r.t. T_CB
-		// Mat66 J_pose_cb = Mat66::Identity();
-		// if(frames.size()<setting_maxFrames){
-		// 	J_pose_cb = Mat66::Zero();
-		// }
-		// J_all.block(0,CPARS+7,9,6) += J_res_posebi.block(0,0,9,6)*J_pose_cb;
-		// J_all.block(0,CPARS+7,9,6) += J_res_posebj.block(0,0,9,6)*J_pose_cb;
-		// J_all_half.block(0,CPARS+7,9,6) += J_res_posebi.block(0,0,9,6)*J_pose_cb;
-		// J_all_half.block(0,CPARS+7,9,6) += J_res_posebj.block(0,0,9,6)*J_pose_cb;
+		// ZMH: T_CB_switch_run_mode
+		Mat66 J_pose_cb = Mat66::Identity();
+		J_pose_cb.block(0,0,3,3) = Mat33::Zero();
+
+		J_all.block(0,CPARS+7,9,6) += J_res_posebi.block(0,0,9,6)*J_pose_cb;
+		J_all.block(0,CPARS+7,9,6) += J_res_posebj.block(0,0,9,6)*J_pose_cb;
+		J_all_half.block(0,CPARS+7,9,6) += J_res_posebi.block(0,0,9,6)*J_pose_cb;
+		J_all_half.block(0,CPARS+7,9,6) += J_res_posebj.block(0,0,9,6)*J_pose_cb;
 	    
 		// ZMH: add T_CB
 	    J_all.block(0,CPARS+7+6+i*17,9,6) += J_imui.block(0,0,9,6)*J_reli.block(0,0,6,6)*J_xi_r_l_i;
@@ -1327,13 +1330,13 @@ void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh){
 // 	}
 	delta_b.block(CPARS,0,7,1) = Sim3(T_WD_l.inverse()*T_WD).log();
 	
-	// // ZMH: for T_CB
-	// delta_b.block(CPARS+7,0,6,1) = SE3(T_CB_l.inverse()*T_CB).log();
+	// ZMH: for T_CB
+	delta_b.block(CPARS+7,0,6,1) = SE3(T_CB_l.inverse()*T_CB).log();
 	    
 	VecX delta_b_half = delta_b;
 	delta_b_half.block(CPARS,0,7,1) = Sim3(T_WD_l_half.inverse()*T_WD).log();
-	// // ZMH: for T_CB
-	// delta_b_half.block(CPARS+7,0,6,1) = SE3(T_CB_l_half.inverse()*T_CB).log();
+	// ZMH: for T_CB
+	delta_b_half.block(CPARS+7,0,6,1) = SE3(T_CB_l_half.inverse()*T_CB).log();
 	
 	bM_change -= HM_change*delta_b;
 	bM_change_half -= HM_change_half*delta_b_half;
@@ -2202,8 +2205,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 // 	    StitchedDelta2.block(CPARS+7+17*i,0,6,1) = temp.block(0,0,6,1);
 // 	}
 	StitchedDelta2.block(CPARS,0,7,1) = state_twd;
-	// // ZMH: add T_CB
-	// StitchedDelta2.block(CPARS+7,0,6,1) = state_tcb;
+	// ZMH: add T_CB
+	StitchedDelta2.block(CPARS+7,0,6,1) = state_tcb;
 	
 	VecX bM_top_imu = (bM_imu + HM_imu*StitchedDelta2); 
 
@@ -2288,13 +2291,14 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	bFinal_top2.block(0,0,CPARS,1) = bFinal_top.block(0,0,CPARS,1);
 	bFinal_top2.block(CPARS,0,7,1) = b_imu.block(0,0,7,1);
 
-	// // ZMH: adding T_CB-T_CB block from imu factor
-	// HFinal_top2.block(CPARS+7,CPARS+7,6,6) = H_imu.block(7,7,6,6);
-	// bFinal_top2.block(CPARS+7,0,6,1) = b_imu.block(7,0,6,1);
+	// ZMH: adding T_CB-T_CB block from imu factor
+	HFinal_top2.block(CPARS+7,CPARS+7,6,6) = H_imu.block(7,7,6,6);
+	bFinal_top2.block(CPARS+7,0,6,1) = b_imu.block(7,0,6,1);
 
-	// // ZMH: adding T_CB-T_wd block
-	// HFinal_top2.block(CPARS+7,CPARS,6,7) = H_imu.block(7,0,6,7);
-	// HFinal_top2.block(CPARS,CPARS+7,7,6) = H_imu.block(0,7,7,6);
+	// ZMH: T_CB_switch_run_mode
+	// ZMH: adding T_CB-T_wd block
+	HFinal_top2.block(CPARS+7,CPARS,6,7) = H_imu.block(7,0,6,7);
+	HFinal_top2.block(CPARS,CPARS+7,7,6) = H_imu.block(0,7,7,6);
 
 	for(int i=0;i<nFrames;++i){
 	    //cam
@@ -2323,13 +2327,15 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	    //pose,v bg ba
 	    HFinal_top2.block(CPARS+7+6+i*17,CPARS+7+6+i*17+8,6,9) += H_imu.block(7+6+i*15,7+6+i*15+6,6,9);
 
-		// // ZMH: adding T_CB-pose_i block
-	    // HFinal_top2.block(CPARS+7,CPARS+7+6+i*17,6,6) += H_imu.block(7,7+6+i*15,6,6);
-	    // HFinal_top2.block(CPARS+7+6+i*17,CPARS+7,6,6) += H_imu.block(7+6+i*15,7,6,6);
+		// ZMH: T_CB_switch_run_mode
+		// ZMH: adding T_CB-pose_i block
+	    HFinal_top2.block(CPARS+7,CPARS+7+6+i*17,6,6) += H_imu.block(7,7+6+i*15,6,6);
+	    HFinal_top2.block(CPARS+7+6+i*17,CPARS+7,6,6) += H_imu.block(7+6+i*15,7,6,6);
 
-		// // ZMH: adding T_CB-(v,bg,va)i block
-	    // HFinal_top2.block(CPARS+7,CPARS+7+6+i*17+8,6,9) += H_imu.block(7,7+6+i*15+6,6,9);
-	    // HFinal_top2.block(CPARS+7+6+i*17+8,CPARS+7,9,6) += H_imu.block(7+6+i*15+6,7,9,6);
+		// ZMH: T_CB_switch_run_mode
+		// ZMH: adding T_CB-(v,bg,va)i block
+	    HFinal_top2.block(CPARS+7,CPARS+7+6+i*17+8,6,9) += H_imu.block(7,7+6+i*15+6,6,9);
+	    HFinal_top2.block(CPARS+7+6+i*17+8,CPARS+7,9,6) += H_imu.block(7+6+i*15+6,7,9,6);
 
 	    for(int j=i+1;j<nFrames;++j){
 		//pose a b
@@ -2424,8 +2430,15 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		    step_twd = -x2.block(CPARS,0,7,1);
 // 		    LOG(INFO)<<"step_twd: "<<step_twd.transpose();
 
-			// // ZMH: add step to update
-			// step_tcb = -x2.block(CPARS+7,0,6,1);
+			// ZMH: add step to update
+			// ZMH: if you want to disable the update of T_CB, then you also need to set the correlation of T_CB with other terms to zero
+			// ZMH: T_CB_switch_run_mode
+			step_tcb = -x2.block(CPARS+7,0,6,1);
+			LOG(INFO) << "H_tcb:\n" << H_imu.block(7,7,6,6);
+			LOG(INFO) << "b_tcb:\n" << b_imu.block(7,0,6,1);
+			LOG(INFO) << "max frame: " << setting_maxFrames;
+			LOG(INFO) << "n frame: " << nFrames;
+			
 		}
 	}
 
