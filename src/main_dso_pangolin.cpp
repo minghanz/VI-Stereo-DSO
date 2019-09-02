@@ -121,7 +121,7 @@ void settingsDefault(int preset)
 // 		setting_desiredImmatureDensity = 3000;
 // 		setting_desiredPointDensity = 3000;
 		setting_minFrames = 5;
-		setting_maxFrames = 7;
+		setting_maxFrames = 20; // 7
 		setting_maxOptIterations=6;
 		setting_minOptIterations=1;
 
@@ -619,6 +619,9 @@ void getIMUinfo(){
 		ss>>noise(line-4);
 		++line;
 	}
+	t(0) = t(0) + 0.5;
+	t(1) = t(1) - 0.5;
+	t(2) = t(2) + 0.5;
 	SE3 temp(R,t);
 	// T_BC = temp;
 	T_CB = temp.inverse();

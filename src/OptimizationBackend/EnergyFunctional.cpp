@@ -358,9 +358,10 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 	// ZMH: A.7 in VI14 supplement, also see 10-11 in VI14
 	// ZMH: Jacobian of residual w.r.t. sim3 transformation from metric frame to dso frame
 	// ZMH: from residual to imu pose, from imu pose of sim3 transform
-	J_all.block(0,0,9,7) += J_res_posebi*J_poseb_wd_i;
-	J_all.block(0,0,9,7) += J_res_posebj*J_poseb_wd_j;
-	J_all.block(0,0,9,3) = Mat93::Zero();
+	// ZMH: T_WD_switch_run_mode
+	// J_all.block(0,0,9,7) += J_res_posebi*J_poseb_wd_i;
+	// J_all.block(0,0,9,7) += J_res_posebj*J_poseb_wd_j;
+	// J_all.block(0,0,9,3) = Mat93::Zero();
 
 
 	// ZMH: add a section for derivative w.r.t. T_CB
@@ -369,7 +370,13 @@ void EnergyFunctional::getIMUHessian(MatXX &H, VecX &b){
 		J_pose_cb = Mat66::Zero();
 	}
 	// ZMH: T_CB_switch_run_mode
-	J_pose_cb.block(0,0,3,3) = Mat33::Zero();
+	if (M_num < 10){
+		J_pose_cb.block(0,0,3,3) = Mat33::Zero();
+		printf("Extrinsic translation fixed\n");
+	}
+	else{
+		printf("Extrinsic translation optimizing\n");
+	}
 
 	J_all.block(0,7,9,6) += J_res_posebi.block(0,0,9,6)*J_pose_cb;
 	J_all.block(0,7,9,6) += J_res_posebj.block(0,0,9,6)*J_pose_cb;
@@ -1238,14 +1245,21 @@ void EnergyFunctional::marginalizeFrame_imu(EFFrame* fh){
 	    J_r_l_i.block(0,0,6,6) = J_xi_r_l_i;
 	    J_r_l_j.block(0,0,6,6) = J_xi_r_l_j;
 	    
-	    J_all.block(0,CPARS,9,7) += J_res_posebi*J_poseb_wd_i;
-	    J_all.block(0,CPARS,9,7) += J_res_posebj*J_poseb_wd_j;
-	    J_all.block(0,CPARS,9,3) = Mat93::Zero();
+		// ZMH: T_WD_switch_run_mode
+	    // J_all.block(0,CPARS,9,7) += J_res_posebi*J_poseb_wd_i;
+	    // J_all.block(0,CPARS,9,7) += J_res_posebj*J_poseb_wd_j;
+	    // J_all.block(0,CPARS,9,3) = Mat93::Zero();
 
 		// ZMH: add a section for derivative w.r.t. T_CB
 		// ZMH: T_CB_switch_run_mode
 		Mat66 J_pose_cb = Mat66::Identity();
-		J_pose_cb.block(0,0,3,3) = Mat33::Zero();
+		if (M_num < 10){
+			J_pose_cb.block(0,0,3,3) = Mat33::Zero();
+			printf("Extrinsic translation fixed\n");
+		}
+		else{
+			printf("Extrinsic translation optimizing\n");
+		}
 
 		J_all.block(0,CPARS+7,9,6) += J_res_posebi.block(0,0,9,6)*J_pose_cb;
 		J_all.block(0,CPARS+7,9,6) += J_res_posebj.block(0,0,9,6)*J_pose_cb;
@@ -2428,12 +2442,13 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		    }
 			// ZMH: step to update Twd
 		    step_twd = -x2.block(CPARS,0,7,1);
-// 		    LOG(INFO)<<"step_twd: "<<step_twd.transpose();
+		    LOG(INFO)<<"step_twd: "<<step_twd.transpose();
 
 			// ZMH: add step to update
 			// ZMH: if you want to disable the update of T_CB, then you also need to set the correlation of T_CB with other terms to zero
 			// ZMH: T_CB_switch_run_mode
 			step_tcb = -x2.block(CPARS+7,0,6,1);
+			LOG(INFO)<<"step_tcb: "<<step_tcb.transpose();
 			LOG(INFO) << "H_tcb:\n" << H_imu.block(7,7,6,6);
 			LOG(INFO) << "b_tcb:\n" << b_imu.block(7,0,6,1);
 			LOG(INFO) << "max frame: " << setting_maxFrames;

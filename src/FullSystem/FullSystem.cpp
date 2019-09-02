@@ -1280,7 +1280,9 @@ void FullSystem::initFirstFrame_imu(FrameHessian* fh){
 	// ZMH: d frame is dso frame, which is aligned with world frame
 	Mat33 R_wd = Mat33::Identity();
 
-	T_WD = Sim3(RxSO3(1,R_wd),Vec3::Zero());
+	// T_WD = Sim3(RxSO3(1,R_wd),Vec3::Zero());
+	// ZMH: initialize T_WD with ground truth value
+	T_WD = Sim3(RxSO3(1.776,R_wd),Vec3::Zero()); // 1.9725, 1.666, 1.73, 1.83, 1.776, 1.82
 	T_WD_l = T_WD;
 	T_WD_l_half = T_WD;
 	state_twd.setZero();

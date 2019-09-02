@@ -295,8 +295,9 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 			  T_CB_l = T_CB;
 		      state_tcb.setZero();
 		  }
-// 		  LOG(INFO)<<"T_WD.scale(): "<<T_WD.scale();
-// 		  LOG(INFO)<<"T_WD.translation(): "<<T_WD.translation().transpose();
+		  LOG(INFO)<<"T_WD.scale(): "<<T_WD.scale();
+		  LOG(INFO)<<"T_WD.translation(): "<<T_WD.translation().transpose();
+		  LOG(INFO)<<"T_WD.rotationMatrix(): "<<T_WD.rotationMatrix();
 		  
 		}
 		for(FrameHessian* fh : frameHessians)
